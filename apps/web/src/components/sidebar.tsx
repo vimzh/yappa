@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Headphones, Home, Lightbulb, Settings } from "lucide-react";
+import { Headphones, Home, Lightbulb, ReceiptText, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const items = [
   { label: "Home", href: "/home", icon: Home },
   { label: "Recordings", href: "/recording", icon: Headphones },
   { label: "Interests", href: "/interests", icon: Lightbulb },
+  { label: "Costs", href: "/costs", icon: ReceiptText },
   { label: "Settings", href: "/settings", icon: Settings },
 ] as const;
 
@@ -42,7 +43,7 @@ export function Sidebar() {
 
       <nav
         aria-label="Primary navigation"
-        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t bg-background/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t bg-background/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
       >
         {items.map(({ label, href, icon: Icon }) => (
           <Link

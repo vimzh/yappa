@@ -1,4 +1,4 @@
-import { runStructured } from "./openai";
+import { runStructured, type OpenAIUsage } from "./openai";
 import {
   transcriptReviewSchema,
   transcriptSchema,
@@ -32,6 +32,7 @@ async function createTranscript(
   sideA: VerificationBrief,
   sideB: VerificationBrief,
   durationMinutes: number,
+  onUsage?: (usage: OpenAIUsage) => Promise<void> | void,
 ) {
   return runStructured({
     schema: transcriptSchema,
@@ -39,6 +40,7 @@ async function createTranscript(
     model: process.env.OPENAI_EDITOR_MODEL ?? "gpt-5.6-luna",
     reasoningEffort: "none",
     maxOutputTokens: 3_500,
+    onUsage,
     instructions: `You are the senior editor of a two-person educational debate podcast.
 
 ${speakerGuide}
@@ -63,6 +65,7 @@ async function reviseTranscript(
   transcript: DebateTranscript,
   review: TranscriptReview,
   durationMinutes: number,
+  onUsage?: (usage: OpenAIUsage) => Promise<void> | void,
 ) {
   return runStructured({
     schema: transcriptSchema,
@@ -70,6 +73,7 @@ async function reviseTranscript(
     model: process.env.OPENAI_EDITOR_MODEL ?? "gpt-5.6-luna",
     reasoningEffort: "none",
     maxOutputTokens: 3_500,
+    onUsage,
     instructions: `You are revising a debate podcast after an exacting editorial review.
 
 ${speakerGuide}
@@ -98,6 +102,7 @@ async function reviewTranscript(
   sideA: VerificationBrief,
   sideB: VerificationBrief,
   transcript: DebateTranscript,
+  onUsage?: (usage: OpenAIUsage) => Promise<void> | void,
 ) {
   return runStructured({
     schema: transcriptReviewSchema,
@@ -105,6 +110,7 @@ async function reviewTranscript(
     model: process.env.OPENAI_EDITOR_MODEL ?? "gpt-5.6-luna",
     reasoningEffort: "none",
     maxOutputTokens: 1_200,
+    onUsage,
     instructions: `You are a strict podcast editor and factual quality reviewer. Score the supplied transcript from 0-100 on each metric.
 
 Penalize a missing or bloated topic-and-speaker orientation, alternating speeches that do not respond to each other, excessive fillers, repeated cadences, unsupported factual claims, citation IDs that do not exist, and stage directions that would be spoken aloud. Reward a concise opening that identifies the topic, Maya's side, and Rowan's side, followed by concessions, follow-up questions, callbacks, clean listening structure, distinct voices, and sparse Fish Audio-ready delivery cues. approved requires overall >= 85, factualAccuracy >= 88, humanRhythm >= 82, and ttsReadiness >= 85.`,
@@ -127,6 +133,7 @@ export async function iterateTranscript(options: {
   sideB: VerificationBrief;
   durationMinutes: number;
   maxIterations: number;
+  onUsage?: (usage: OpenAIUsage) => Promise<void> | void;
   onIteration?: (artifact: TranscriptIteration) => Promise<void>;
 }) {
   const artifacts: TranscriptIteration[] = [];
@@ -135,6 +142,7 @@ export async function iterateTranscript(options: {
     options.sideA,
     options.sideB,
     options.durationMinutes,
+    options.onUsage,
   );
   let review: TranscriptReview | undefined;
 
@@ -147,6 +155,7 @@ export async function iterateTranscript(options: {
         transcript,
         review,
         options.durationMinutes,
+        options.onUsage,
       );
     }
 
@@ -155,6 +164,7 @@ export async function iterateTranscript(options: {
       options.sideA,
       options.sideB,
       transcript,
+      options.onUsage,
     );
 
     const artifact = {

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { db, podcasts, type Podcast } from "@yappa/db";
 import { eq } from "drizzle-orm";
 
+import { recordFishUsage, recordOpenAIUsage } from "../costs";
 import { synthesizeDebatePreview } from "./fish-audio";
 import { assertRequiredCredentials } from "./openai";
 import { researchSide } from "./research-agent";
@@ -126,10 +127,14 @@ export async function runPodcastGeneration(options: {
   const sideBResearchPath = resolve(directory, "side-b-research.json");
   const [sideAResearch, sideBResearch] = await Promise.all([
     loadOrCreateJson<ResearchBrief>(sideAResearchPath, () =>
-      researchSide(options.topic, "A"),
+      researchSide(options.topic, "A", (usage) =>
+        recordOpenAIUsage(options.id, usage),
+      ),
     ),
     loadOrCreateJson<ResearchBrief>(sideBResearchPath, () =>
-      researchSide(options.topic, "B"),
+      researchSide(options.topic, "B", (usage) =>
+        recordOpenAIUsage(options.id, usage),
+      ),
     ),
   ]);
 
@@ -138,10 +143,14 @@ export async function runPodcastGeneration(options: {
   const sideBVerificationPath = resolve(directory, "side-b-verification.json");
   const [sideA, sideB] = await Promise.all([
     loadOrCreateJson<VerificationBrief>(sideAVerificationPath, () =>
-      verifySide(options.topic, sideAResearch),
+      verifySide(options.topic, sideAResearch, (usage) =>
+        recordOpenAIUsage(options.id, usage),
+      ),
     ),
     loadOrCreateJson<VerificationBrief>(sideBVerificationPath, () =>
-      verifySide(options.topic, sideBResearch),
+      verifySide(options.topic, sideBResearch, (usage) =>
+        recordOpenAIUsage(options.id, usage),
+      ),
     ),
   ]);
 
@@ -162,7 +171,8 @@ export async function runPodcastGeneration(options: {
     );
     const audioPath = resolve(directory, "preview.mp3");
     await setStage(options.id, "synthesizing", 88);
-    await synthesizeDebatePreview(preview.text, audioPath);
+    const fish = await synthesizeDebatePreview(preview.text, audioPath);
+    await recordFishUsage(options.id, preview.text, fish.model);
     await updatePodcast(options.id, {
       status: "ready",
       progress: 100,
@@ -179,6 +189,7 @@ export async function runPodcastGeneration(options: {
     sideB,
     durationMinutes: options.durationMinutes,
     maxIterations: options.maxIterations,
+    onUsage: (usage) => recordOpenAIUsage(options.id, usage),
     onIteration: async (artifact) => {
       await Promise.all([
         writeJson(
@@ -229,7 +240,8 @@ export async function runPodcastGeneration(options: {
 
   await setStage(options.id, "synthesizing", 88);
   const audioPath = resolve(directory, "preview.mp3");
-  await synthesizeDebatePreview(preview.text, audioPath);
+  const fish = await synthesizeDebatePreview(preview.text, audioPath);
+  await recordFishUsage(options.id, preview.text, fish.model);
 
   await updatePodcast(options.id, {
     status: "ready",

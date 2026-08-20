@@ -24,6 +24,8 @@ export async function synthesizeDebatePreview(text: string, outputPath: string) 
   ];
   await Promise.all(voiceIds.map((id) => assertVoiceAvailable(apiKey, id)));
 
+  const model = process.env.FISH_TTS_MODEL ?? "s2.1-pro-free";
+
   // One request and no automatic retry: this preview must conserve Fish credits.
   const response = await fetch("https://api.fish.audio/v1/tts", {
     method: "POST",
@@ -31,7 +33,7 @@ export async function synthesizeDebatePreview(text: string, outputPath: string) 
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      model: process.env.FISH_TTS_MODEL ?? "s2.1-pro-free",
+      model,
     },
     body: JSON.stringify({
       text,
@@ -71,5 +73,5 @@ export async function synthesizeDebatePreview(text: string, outputPath: string) 
   }
 
   await Bun.write(outputPath, audio);
-  return audio.byteLength;
+  return { audioBytes: audio.byteLength, model };
 }

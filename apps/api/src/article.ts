@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { runStructured } from "./debate/openai";
+import { runStructured, type OpenAIUsage } from "./debate/openai";
 import type { DebateTranscript } from "./debate/schemas";
 
 const articleParagraphSchema = z.object({
@@ -77,6 +77,7 @@ export async function generateLearningArticle(options: {
   topic: string;
   transcript: DebateTranscript;
   sources: ArticleSource[];
+  onUsage?: (usage: OpenAIUsage) => Promise<void> | void;
 }) {
   const sourceCatalog = options.sources
     .map(
@@ -91,6 +92,7 @@ export async function generateLearningArticle(options: {
     model: process.env.OPENAI_EDITOR_MODEL ?? "gpt-5.6-luna",
     reasoningEffort: "none",
     maxOutputTokens: 3_600,
+    onUsage: options.onUsage,
     instructions: `You are Yappa's evidence-disciplined learning editor. Turn a verified two-sided podcast transcript into a clear, balanced long-form article.
 
 Write 900-1,800 words across 5-7 titled sections, with 2-4 substantial paragraphs per section. Open with the core tension, explain the strongest case on each side, surface the meaningful concessions, and end with what remains unresolved. Preserve uncertainty and disagreement instead of declaring a winner.

@@ -4,6 +4,15 @@ import type { z } from "zod";
 
 let client: OpenAI | undefined;
 
+export type OpenAIUsage = {
+  model: string;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  webSearchCalls: number;
+};
+
 function getClient() {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -35,6 +44,7 @@ export async function runStructured<TSchema extends z.ZodType>(options: {
   reasoningEffort?: "none" | "low";
   webSearch?: boolean;
   webSearchMaxCalls?: number;
+  onUsage?: (usage: OpenAIUsage) => Promise<void> | void;
 }) {
   const model = options.model ?? "gpt-5.6-luna";
   const response = await getClient().responses.parse({
@@ -57,6 +67,18 @@ export async function runStructured<TSchema extends z.ZodType>(options: {
     },
   });
 
+  const usage: OpenAIUsage = {
+    model,
+    inputTokens: response.usage?.input_tokens ?? 0,
+    cachedInputTokens: response.usage?.input_tokens_details?.cached_tokens ?? 0,
+    outputTokens: response.usage?.output_tokens ?? 0,
+    reasoningTokens: response.usage?.output_tokens_details?.reasoning_tokens ?? 0,
+    webSearchCalls: response.output.filter(
+      (item) => item.type === "web_search_call",
+    ).length,
+  };
+  await options.onUsage?.(usage);
+
   if (!response.output_parsed) {
     const reason = response.incomplete_details?.reason;
     throw new Error(
@@ -67,9 +89,10 @@ export async function runStructured<TSchema extends z.ZodType>(options: {
   console.info("OpenAI generation usage", {
     schema: options.schemaName,
     model,
-    inputTokens: response.usage?.input_tokens,
-    outputTokens: response.usage?.output_tokens,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
     totalTokens: response.usage?.total_tokens,
+    webSearchCalls: usage.webSearchCalls,
   });
 
   return response.output_parsed;

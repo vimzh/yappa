@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CalendarClock, Clock3, LoaderCircle, Pause, Play } from "lucide-react";
 
 import { AudioPlayer } from "@/components/audio-player";
+import { readApiJson } from "@/lib/api-response";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -553,7 +554,7 @@ export function PodcastWorkspace() {
           maxIterations: 2,
         }),
       });
-      const body = (await response.json()) as Podcast | { error: string };
+      const body = (await readApiJson(response)) as Podcast | { error: string };
 
       if (!response.ok) {
         throw new Error(
@@ -587,7 +588,7 @@ export function PodcastWorkspace() {
       const response = await fetch(`${apiUrl}/podcasts/${podcast.id}/retry`, {
         method: "POST",
       });
-      const body = (await response.json()) as Podcast | { error: string };
+      const body = (await readApiJson(response)) as Podcast | { error: string };
       if (!response.ok) {
         throw new Error(
           "error" in body && typeof body.error === "string"

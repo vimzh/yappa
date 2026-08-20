@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { generateLearningArticle } from "./article";
 import { parseByteRange } from "./audio-range";
+import { recordOpenAIUsage, summarizeCosts, toPodcastCost } from "./costs";
 import { runPodcastGeneration } from "./debate/pipeline";
 import {
   podcastStatuses,
@@ -67,6 +68,7 @@ function toPodcastSummary(podcast: typeof podcasts.$inferSelect) {
     error: podcast.error,
     hasAudio: podcast.status === "ready" && Boolean(podcast.audioPath),
     hasArticle: Boolean(podcast.article),
+    cost: toPodcastCost(podcast),
     scheduledFor: podcast.scheduledFor?.toISOString() ?? null,
     createdAt: podcast.createdAt.toISOString(),
     updatedAt: podcast.updatedAt.toISOString(),
@@ -194,6 +196,19 @@ export const app = new Hono()
     const rows = await db.select().from(podcasts).orderBy(desc(podcasts.createdAt));
     return context.json(rows.map(toPodcastSummary));
   })
+  .get("/costs", async (context) => {
+    const rows = await db.select().from(podcasts).orderBy(desc(podcasts.createdAt));
+    return context.json({
+      totals: summarizeCosts(rows),
+      podcasts: rows.map((podcast) => ({
+        id: podcast.id,
+        title: podcast.title,
+        status: podcast.status,
+        createdAt: podcast.createdAt.toISOString(),
+        cost: toPodcastCost(podcast),
+      })),
+    });
+  })
   .post("/podcasts", async (context) => {
     let body: unknown;
     try {
@@ -242,6 +257,18 @@ export const app = new Hono()
       report: null,
       article: null,
       audioPath: null,
+      openaiInputTokens: 0,
+      openaiCachedInputTokens: 0,
+      openaiOutputTokens: 0,
+      openaiReasoningTokens: 0,
+      openaiWebSearchCalls: 0,
+      openaiMeteredCalls: 0,
+      openaiUnpricedCalls: 0,
+      openaiCostNanoUsd: 0,
+      fishInputBytes: 0,
+      fishTtsRequests: 0,
+      fishUnpricedRequests: 0,
+      fishCostNanoUsd: 0,
       scheduledFor: schedule.scheduledFor,
       error: null,
       createdAt: now,
@@ -398,6 +425,7 @@ export const app = new Hono()
         topic: podcast.topic,
         transcript: transcript.data,
         sources: sources.data,
+        onUsage: (usage) => recordOpenAIUsage(id, usage),
       });
       await db
         .update(podcasts)
