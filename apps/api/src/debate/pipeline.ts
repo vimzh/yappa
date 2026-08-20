@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { db, podcasts, type Podcast } from "@yappa/db";
 import { eq } from "drizzle-orm";
@@ -19,6 +19,10 @@ import { iterateTranscript, toFishAudioText } from "./transcript-agent";
 import { verifySide } from "./verification-agent";
 
 const artifactRoot = resolve(import.meta.dir, "../../../../data/podcasts");
+
+export async function removePodcastArtifacts(id: string) {
+  await rm(resolve(artifactRoot, id), { force: true, recursive: true });
+}
 
 export function audioWordLimit(durationMinutes: number) {
   return durationMinutes * 150;

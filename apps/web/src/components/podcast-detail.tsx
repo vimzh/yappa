@@ -1,11 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, LoaderCircle } from "lucide-react";
+import { ArrowLeft, LoaderCircle, Trash2 } from "lucide-react";
 
 import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
 
@@ -213,9 +224,12 @@ function ArticlePrompt({
 }
 
 export function PodcastDetail({ id }: { id: string }) {
+  const router = useRouter();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -244,10 +258,30 @@ export function PodcastDetail({ id }: { id: string }) {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (!generating) return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const response = await fetch(`${apiUrl}/podcasts/${id}`);
+        const body: unknown = await response.json();
+        if (!response.ok || !(body as Podcast).article) return;
+        setState({ status: "ready", podcast: body as Podcast });
+        setGenerating(false);
+      } catch {
+        // Keep waiting: the original generation request is still authoritative.
+      }
+    }, 2_000);
+
+    return () => window.clearInterval(interval);
+  }, [generating, id]);
+
   async function generateArticle() {
     if (state.status !== "ready") return;
     setGenerating(true);
     setGenerationError(null);
+
+    let waitingForExistingArticle = false;
 
     try {
       const response = await fetch(`${apiUrl}/podcasts/${id}/article`, {
@@ -255,7 +289,12 @@ export function PodcastDetail({ id }: { id: string }) {
       });
       const body: unknown = await response.json();
       if (!response.ok) {
-        throw new Error(readError(body, "Article generation failed. Try again."));
+        const message = readError(body, "Article generation failed. Try again.");
+        if (response.status === 409 && message === "The article is already generating.") {
+          waitingForExistingArticle = true;
+          return;
+        }
+        throw new Error(message);
       }
       setState({
         status: "ready",
@@ -266,7 +305,24 @@ export function PodcastDetail({ id }: { id: string }) {
         error instanceof Error ? error.message : "Article generation failed. Try again.",
       );
     } finally {
-      setGenerating(false);
+      if (!waitingForExistingArticle) setGenerating(false);
+    }
+  }
+
+  async function deletePodcast() {
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(`${apiUrl}/podcasts/${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error(readError(await response.json(), "Podcast could not be deleted."));
+      }
+      router.push("/recording");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Podcast could not be deleted.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -291,10 +347,33 @@ export function PodcastDetail({ id }: { id: string }) {
 
   return (
     <div className="mx-auto w-full max-w-6xl">
-      <Link className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground" href="/recording">
-        <ArrowLeft aria-hidden="true" className="size-4" />
-        Back to recordings
-      </Link>
+      <div className="flex items-center justify-between gap-4">
+        <Link className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground" href="/recording">
+          <ArrowLeft aria-hidden="true" className="size-4" />
+          Back to recordings
+        </Link>
+        <Dialog>
+          <DialogTrigger render={<Button className="text-destructive hover:text-destructive" variant="ghost" />}>
+            <Trash2 aria-hidden="true" className="size-4" />
+            Delete
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete this podcast?</DialogTitle>
+              <DialogDescription>
+                This permanently removes the podcast, article, audio, and local research artifacts.
+              </DialogDescription>
+            </DialogHeader>
+            {deleteError ? <p className="text-sm text-destructive" role="alert">{deleteError}</p> : null}
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+              <Button disabled={deleting} onClick={deletePodcast} variant="destructive">
+                {deleting ? "Deleting…" : "Delete podcast"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       <header className="mt-8 max-w-4xl">
         <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">

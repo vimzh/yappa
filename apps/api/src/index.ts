@@ -1,5 +1,5 @@
 import { db, interests, podcasts } from "@yappa/db";
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { z } from "zod";
 import { generateLearningArticle } from "./article";
 import { parseByteRange } from "./audio-range";
 import { recordOpenAIUsage, summarizeCosts, toPodcastCost } from "./costs";
-import { runPodcastGeneration } from "./debate/pipeline";
+import { removePodcastArtifacts, runPodcastGeneration } from "./debate/pipeline";
 import {
   podcastStatuses,
   sourceSchema,
@@ -16,7 +16,7 @@ import {
 import { getPodcastSchedule } from "./podcast-schedule";
 
 const createPodcastSchema = z.object({
-  topic: z.string().trim().min(8).max(240),
+  topic: z.string().trim().min(8).max(240).optional(),
   durationMinutes: z.union([
     z.literal(1),
     z.literal(3),
@@ -108,7 +108,12 @@ async function startScheduledPodcasts() {
   const scheduled = await db
     .select()
     .from(podcasts)
-    .where(eq(podcasts.status, "scheduled"))
+    .where(
+      and(
+        eq(podcasts.status, "scheduled"),
+        lte(podcasts.scheduledFor, new Date()),
+      ),
+    )
     .orderBy(asc(podcasts.scheduledFor))
     .limit(availableSlots);
 
@@ -209,6 +214,28 @@ export const app = new Hono()
       })),
     });
   })
+  .delete("/podcasts/:id", async (context) => {
+    const id = context.req.param("id");
+    if (activeJobs.has(id) || activeArticleJobs.has(id)) {
+      return context.json(
+        { error: "A generating podcast cannot be deleted yet." },
+        409,
+      );
+    }
+
+    const [podcast] = await db
+      .select({ id: podcasts.id })
+      .from(podcasts)
+      .where(eq(podcasts.id, id))
+      .limit(1);
+    if (!podcast) {
+      return context.json({ error: "Podcast not found." }, 404);
+    }
+
+    await removePodcastArtifacts(id);
+    await db.delete(podcasts).where(eq(podcasts.id, id));
+    return new Response(null, { status: 204 });
+  })
   .post("/podcasts", async (context) => {
     let body: unknown;
     try {
@@ -233,6 +260,30 @@ export const app = new Hono()
     }
 
     const schedule = getPodcastSchedule(parsed.data.scheduledFor);
+    let topic = parsed.data.topic;
+
+    if (!topic) {
+      if (schedule.shouldStart) {
+        return context.json(
+          { error: "Describe the debate before creating it now." },
+          400,
+        );
+      }
+
+      const [interest] = await db
+        .select({ topic: interests.topic })
+        .from(interests)
+        .orderBy(desc(interests.createdAt))
+        .limit(1);
+      if (!interest) {
+        return context.json(
+          { error: "Save an interest before scheduling a podcast without a topic." },
+          400,
+        );
+      }
+
+      topic = `Debate the key trade-offs in ${interest.topic}.`;
+    }
 
     if (schedule.shouldStart && activeJobs.size >= maxConcurrentPodcasts) {
       return context.json(
@@ -245,8 +296,8 @@ export const app = new Hono()
     const now = new Date();
     const podcast = {
       id,
-      topic: parsed.data.topic,
-      title: parsed.data.topic,
+      topic,
+      title: topic,
       status: schedule.status,
       progress: schedule.progress,
       durationMinutes: parsed.data.durationMinutes,
@@ -279,7 +330,7 @@ export const app = new Hono()
     if (schedule.shouldStart) {
       startPodcastJob({
         id,
-        topic: parsed.data.topic,
+        topic,
         durationMinutes: parsed.data.durationMinutes,
         maxIterations: parsed.data.maxIterations,
       });

@@ -521,10 +521,18 @@ export function PodcastWorkspace() {
       ? new Date(String(formData.get("scheduledFor") ?? ""))
       : null;
 
-    if (topic.length < 8) {
+    if (!shouldSchedule && topic.length < 8) {
       setRequest({
         status: "error",
         message: "Describe the debate in at least 8 characters.",
+        field: "topic",
+      });
+      return;
+    }
+    if (shouldSchedule && topic.length > 0 && topic.length < 8) {
+      setRequest({
+        status: "error",
+        message: "Describe the debate in at least 8 characters, or leave it blank to use an interest.",
         field: "topic",
       });
       return;
@@ -548,7 +556,7 @@ export function PodcastWorkspace() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          topic,
+          ...(topic ? { topic } : {}),
           durationMinutes: selectedDurationMinutes,
           scheduledFor: scheduledFor?.toISOString(),
           maxIterations: 2,
@@ -746,6 +754,9 @@ export function PodcastWorkspace() {
                   required
                   type="datetime-local"
                 />
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Leave the topic blank to use your most recently saved interest.
+                </p>
               </div>
               <Button
                 className="h-11 px-4"
