@@ -1,0 +1,64 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Headphones, Home, Lightbulb, Settings } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+const items = [
+  { label: "Home", href: "/home", icon: Home },
+  { label: "Recordings", href: "/recording", icon: Headphones },
+  { label: "Interests", href: "/interests", icon: Lightbulb },
+  { label: "Settings", href: "/settings", icon: Settings },
+] as const;
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const isCurrent = (href: string) =>
+    pathname === href || (href === "/recording" && pathname.startsWith("/podcasts/"));
+
+  return (
+    <>
+      <aside className="hidden min-h-svh w-16 shrink-0 flex-col border-r border-border px-2 py-5 sm:flex lg:w-56 lg:px-3">
+        <nav aria-label="Primary navigation" className="flex flex-col gap-1">
+          {items.map(({ label, href, icon: Icon }) => (
+            <Link
+              aria-current={isCurrent(href) ? "page" : undefined}
+              aria-label={label}
+              className={cn(
+                "flex min-h-11 items-center justify-center gap-3 rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:justify-start",
+                isCurrent(href) && "bg-muted text-foreground",
+              )}
+              href={href}
+              key={href}
+            >
+              <Icon aria-hidden="true" className="size-4" />
+              <span className="hidden lg:inline">{label}</span>
+            </Link>
+          ))}
+        </nav>
+      </aside>
+
+      <nav
+        aria-label="Primary navigation"
+        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t bg-background/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+      >
+        {items.map(({ label, href, icon: Icon }) => (
+          <Link
+            aria-current={isCurrent(href) ? "page" : undefined}
+            className={cn(
+              "flex min-h-16 min-w-11 flex-col items-center justify-center gap-1 px-1 text-[11px] text-muted-foreground",
+              isCurrent(href) && "text-foreground",
+            )}
+            href={href}
+            key={href}
+          >
+            <Icon aria-hidden="true" className="size-5" />
+            <span>{label}</span>
+          </Link>
+        ))}
+      </nav>
+    </>
+  );
+}
