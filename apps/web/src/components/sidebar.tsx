@@ -21,7 +21,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="hidden min-h-svh w-16 shrink-0 flex-col border-r border-border px-2 py-5 sm:flex lg:w-56 lg:px-3">
+      <aside className="sticky top-0 hidden h-svh w-16 shrink-0 self-start flex-col border-r border-border px-2 py-5 sm:flex lg:w-56 lg:px-3">
         <nav aria-label="Primary navigation" className="flex flex-col gap-1">
           {items.map(({ label, href, icon: Icon }) => (
             <Link

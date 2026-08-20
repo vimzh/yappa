@@ -58,7 +58,7 @@ export function LandingHeader() {
         <Button
           className="min-h-11 px-3 sm:px-5"
           nativeButton={false}
-          render={<a href="#start" />}
+          render={<Link href="/home" />}
         >
           Try now
         </Button>

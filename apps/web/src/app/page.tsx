@@ -1,8 +1,10 @@
 import { AnnouncementBanner } from "@/components/announcement-banner";
+import { DemoStack } from "@/components/demo-stack";
 import { FooterBar } from "@/components/footer-bar";
 import { LandingHeader } from "@/components/landing-header";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import Link from "next/link";
 
 const features = [
   {
@@ -122,7 +124,12 @@ export default function Home() {
           </p>
 
           <div className="mt-10 flex scroll-mt-32 flex-wrap gap-3" id="start">
-            <Button className="min-h-11 px-5" size="lg">
+            <Button
+              className="min-h-11 px-5"
+              nativeButton={false}
+              render={<Link href="/home" />}
+              size="lg"
+            >
               Try it now
             </Button>
             <Button
@@ -136,6 +143,8 @@ export default function Home() {
             </Button>
           </div>
         </section>
+
+        <DemoStack />
 
         <section
           className="relative py-24 before:absolute before:top-0 before:left-1/2 before:w-screen before:-translate-x-1/2 before:border-t before:border-border before:content-[''] sm:py-32"
