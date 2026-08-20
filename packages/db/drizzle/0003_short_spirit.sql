@@ -1,0 +1,1 @@
+ALTER TABLE `podcasts` ADD `duration_minutes` integer DEFAULT 5 NOT NULL;

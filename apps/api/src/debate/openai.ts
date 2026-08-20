@@ -31,15 +31,19 @@ export async function runStructured<TSchema extends z.ZodType>(options: {
   instructions: string;
   input: string;
   maxOutputTokens: number;
+  model?: string;
+  reasoningEffort?: "none" | "low";
   webSearch?: boolean;
+  webSearchMaxCalls?: number;
 }) {
+  const model = options.model ?? "gpt-5.6-luna";
   const response = await getClient().responses.parse({
-    model: process.env.OPENAI_MODEL ?? "gpt-5.6",
+    model,
     instructions: options.instructions,
     input: options.input,
     max_output_tokens: options.maxOutputTokens,
-    max_tool_calls: options.webSearch ? 10 : undefined,
-    reasoning: { effort: "low" },
+    max_tool_calls: options.webSearch ? (options.webSearchMaxCalls ?? 3) : undefined,
+    reasoning: { effort: options.reasoningEffort ?? "low" },
     store: false,
     tools: options.webSearch
       ? [{ type: "web_search", search_context_size: "high" }]
@@ -59,6 +63,14 @@ export async function runStructured<TSchema extends z.ZodType>(options: {
       `${options.schemaName} returned no structured output (status: ${response.status}${reason ? `, reason: ${reason}` : ""}).`,
     );
   }
+
+  console.info("OpenAI generation usage", {
+    schema: options.schemaName,
+    model,
+    inputTokens: response.usage?.input_tokens,
+    outputTokens: response.usage?.output_tokens,
+    totalTokens: response.usage?.total_tokens,
+  });
 
   return response.output_parsed;
 }

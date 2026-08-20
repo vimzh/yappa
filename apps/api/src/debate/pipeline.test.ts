@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { parseByteRange } from "../audio-range";
 import { getPodcastSchedule } from "../podcast-schedule";
+import { audioWordLimit } from "./pipeline";
 import { transcriptSchema } from "./schemas";
 import { toFishAudioText } from "./transcript-agent";
 
@@ -19,6 +20,12 @@ const transcript = transcriptSchema.parse({
 });
 
 describe("podcast delivery helpers", () => {
+  test("maps selected minutes to spoken-word audio length", () => {
+    expect(audioWordLimit(1)).toBe(150);
+    expect(audioWordLimit(3)).toBe(450);
+    expect(audioWordLimit(5)).toBe(750);
+  });
+
   test("caps the preview and includes both voices", () => {
     const preview = toFishAudioText(transcript, 90);
 

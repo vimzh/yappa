@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { CalendarClock, LoaderCircle, Pause, Play, Plus } from "lucide-react";
+import { CalendarClock, Clock3, LoaderCircle, Pause, Play } from "lucide-react";
 
 import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
 
@@ -43,17 +50,13 @@ type Podcast = {
   title: string;
   status: string;
   progress: number;
+  durationMinutes: number;
   transcriptIterations: number;
   qualityScore: number | null;
   error: string | null;
   hasAudio: boolean;
   scheduledFor: string | null;
   createdAt: string;
-};
-
-type Interest = {
-  id: string;
-  topic: string;
 };
 
 type RequestState =
@@ -63,7 +66,7 @@ type RequestState =
   | {
       status: "error";
       message: string;
-      field: "interests" | "schedule" | null;
+      field: "topic" | "schedule" | null;
     };
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -228,14 +231,45 @@ function NextPodcastStatus({ podcast }: { podcast: Podcast | null }) {
 function PodcastProgress({ podcast }: { podcast: Podcast }) {
   if (!activeStatuses.has(podcast.status)) return null;
 
+  const stages = [
+    ["queued", "Queued"],
+    ["researching", "Research"],
+    ["verifying", "Verify"],
+    ["writing", "Write"],
+    ["synthesizing", "Audio"],
+  ] as const;
+  const activeStage = stages.findIndex(([stage]) => stage === podcast.status);
+
   return (
-    <div className="mt-4">
+    <div className="mt-5" aria-label={`Generation progress: ${getStatusLabel(podcast)}`}>
       <progress
         aria-label={`${getStatusLabel(podcast)}: ${podcast.progress}%`}
         className="h-1 w-full accent-foreground"
         max="100"
         value={podcast.progress}
       />
+      <ol className="mt-3 grid grid-cols-5 gap-1" aria-hidden="true">
+        {stages.map(([stage, label], index) => {
+          const isActive = index === activeStage;
+          const isComplete = index < activeStage;
+          return (
+            <li className="min-w-0" key={stage}>
+              <span
+                className={
+                  isActive
+                    ? "block h-1.5 overflow-hidden rounded-full bg-[length:200%_100%] bg-[linear-gradient(110deg,var(--foreground)_20%,var(--muted)_45%,var(--foreground)_70%)] animate-[yappa-shimmer_1.4s_linear_infinite] motion-reduce:animate-none"
+                    : isComplete
+                      ? "block h-1.5 rounded-full bg-foreground"
+                      : "block h-1.5 rounded-full bg-border"
+                }
+              />
+              <span className="mt-1 block truncate font-mono text-[10px] text-muted-foreground">
+                {label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }
@@ -416,12 +450,12 @@ function PodcastTable({
 
 export function PodcastWorkspace() {
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
-  const [interests, setInterests] = useState<Interest[]>([]);
   const [request, setRequest] = useState<RequestState>({ status: "idle" });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState(0);
-  const [schedulerOpen, setSchedulerOpen] = useState(false);
+  const [durationMinutes, setDurationMinutes] = useState("1");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleDefaults, setScheduleDefaults] = useState({
     min: "",
     value: "",
@@ -465,20 +499,7 @@ export function PodcastWorkspace() {
       }
     }
 
-    async function loadInterests() {
-      try {
-        const response = await fetch(`${apiUrl}/interests`);
-        if (!response.ok) throw new Error();
-        if (mounted) setInterests((await response.json()) as Interest[]);
-      } catch {
-        if (mounted) {
-          setLoadError("Couldn’t load interests. Check that the API is running.");
-        }
-      }
-    }
-
     void refreshPodcasts();
-    void loadInterests();
     const interval = window.setInterval(refreshPodcasts, 3_000);
     return () => {
       mounted = false;
@@ -486,26 +507,31 @@ export function PodcastWorkspace() {
     };
   }, []);
 
-  async function handleSchedule(event: FormEvent<HTMLFormElement>) {
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const selectedIds = formData.getAll("interest").map(String);
-    const selectedTopics = interests.filter((interest) =>
-      selectedIds.includes(interest.id),
-    );
-    const scheduledAt = String(formData.get("scheduledFor") ?? "");
-    const scheduledFor = new Date(scheduledAt);
+    const topic = String(formData.get("topic") ?? "").trim();
+    const selectedDurationMinutes = Number(durationMinutes);
+    const submitter = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null;
+    const shouldSchedule = submitter?.value === "schedule";
+    const scheduledFor = shouldSchedule
+      ? new Date(String(formData.get("scheduledFor") ?? ""))
+      : null;
 
-    if (selectedTopics.length === 0) {
+    if (topic.length < 8) {
       setRequest({
         status: "error",
-        message: "Choose at least one interest.",
-        field: "interests",
+        message: "Describe the debate in at least 8 characters.",
+        field: "topic",
       });
       return;
     }
-    if (Number.isNaN(scheduledFor.getTime()) || scheduledFor <= new Date()) {
+    if (
+      shouldSchedule &&
+      (!scheduledFor || Number.isNaN(scheduledFor.getTime()) || scheduledFor <= new Date())
+    ) {
       setRequest({
         status: "error",
         message: "Choose a time in the future.",
@@ -521,11 +547,10 @@ export function PodcastWorkspace() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          topic: `Debate: ${selectedTopics
-            .map((interest) => interest.topic)
-            .join(" and ")}`,
-          scheduledFor: scheduledFor.toISOString(),
-          maxIterations: 5,
+          topic,
+          durationMinutes: selectedDurationMinutes,
+          scheduledFor: scheduledFor?.toISOString(),
+          maxIterations: 2,
         }),
       });
       const body = (await response.json()) as Podcast | { error: string };
@@ -540,8 +565,9 @@ export function PodcastWorkspace() {
 
       setPodcasts((current) => [body as Podcast, ...current]);
       setRequest({ status: "idle" });
-      setSchedulerOpen(false);
+      setScheduleOpen(false);
       form.reset();
+      setDurationMinutes("1");
     } catch (caught) {
       setRequest({
         status: "error",
@@ -588,16 +614,16 @@ export function PodcastWorkspace() {
     }
   }
 
-  function toggleScheduler() {
+  function toggleSchedule() {
     setRequest({ status: "idle" });
-    if (!schedulerOpen) {
+    if (!scheduleOpen) {
       const now = new Date();
       setScheduleDefaults({
         min: toLocalDateTimeInput(now),
         value: toLocalDateTimeInput(new Date(now.getTime() + 60 * 60_000)),
       });
     }
-    setSchedulerOpen((open) => !open);
+    setScheduleOpen((open) => !open);
   }
 
   return (
@@ -616,136 +642,136 @@ export function PodcastWorkspace() {
         aria-labelledby="home-heading"
         className="mt-14"
       >
-        <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Home
+        <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
+          New episode
+        </p>
+        <h2
+          className="mt-3 font-mono text-3xl tracking-[-0.04em] sm:text-4xl"
+          id="home-heading"
+        >
+          What do you want to learn?
+        </h2>
+        <p className="mt-3 text-lg text-muted-foreground">
+          Pick a question. We’ll build a two-sided podcast around it.
+        </p>
+
+        <form className="mt-8 border-y py-6 sm:py-8" onSubmit={handleCreate}>
+          <Label className="sr-only" htmlFor="podcast-topic">
+            Podcast topic
+          </Label>
+          <Input
+            aria-describedby={
+              request.status === "error" && request.field === "topic"
+                ? "topic-error"
+                : undefined
+            }
+            aria-invalid={request.status === "error" && request.field === "topic"}
+            className="h-14 rounded-md px-4 text-base md:text-lg"
+            id="podcast-topic"
+            maxLength={240}
+            name="topic"
+            placeholder="For example: SSR versus CSR for a growing SaaS product"
+            required
+          />
+          {request.status === "error" && request.field === "topic" ? (
+            <p className="mt-3 text-sm text-destructive" id="topic-error" role="alert">
+              {request.message}
             </p>
-            <h2
-              className="mt-3 font-mono text-3xl tracking-[-0.04em] sm:text-4xl"
-              id="home-heading"
-            >
-              Your learning queue
-            </h2>
-            <p className="mt-3 text-lg text-muted-foreground">
-              Schedule a debate now. Play it when the time comes.
-            </p>
+          ) : null}
+
+          <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <Label htmlFor="duration-minutes">Episode length</Label>
+              <div className="mt-2 flex items-center gap-2">
+                <Clock3 aria-hidden="true" className="size-4 text-muted-foreground" />
+                <Select
+                  name="durationMinutes"
+                  onValueChange={(value) => setDurationMinutes(value ?? "1")}
+                  value={durationMinutes}
+                >
+                  <SelectTrigger className="h-11 min-w-36" id="duration-minutes">
+                    <SelectValue>{`${durationMinutes} ${durationMinutes === "1" ? "minute" : "minutes"}`}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 minute</SelectItem>
+                    <SelectItem value="3">3 minutes</SelectItem>
+                    <SelectItem value="5">5 minutes</SelectItem>
+                    <SelectItem value="8">8 minutes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                className="h-11 px-4"
+                disabled={request.status === "submitting"}
+                name="action"
+                type="submit"
+                value="now"
+              >
+                {request.status === "submitting" && !scheduleOpen ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                ) : null}
+                Create now
+              </Button>
+              <Button
+                aria-expanded={scheduleOpen}
+                className="h-11 px-4"
+                onClick={toggleSchedule}
+                type="button"
+                variant="outline"
+              >
+                Schedule later
+              </Button>
+            </div>
           </div>
-          <Button
-            aria-expanded={schedulerOpen}
-            className="h-11 px-4"
-            onClick={toggleScheduler}
-            type="button"
-          >
-            <Plus aria-hidden="true" />
-            New podcast
-          </Button>
-        </div>
 
-        {schedulerOpen ? (
-          <form
-            className="mt-8 rounded-xl border p-5 sm:p-6"
-            onSubmit={handleSchedule}
-          >
-            <fieldset
-              aria-describedby={
-                request.status === "error" && request.field === "interests"
-                  ? "interests-error"
-                  : undefined
-              }
-            >
-              <legend className="text-sm font-medium">Choose interests</legend>
-              {interests.length === 0 ? (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  No interests saved.{" "}
-                  <Link
-                    className="text-foreground underline underline-offset-4"
-                    href="/interests"
-                  >
-                    Add your first interest
-                  </Link>
-                  .
-                </p>
-              ) : (
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {interests.map((interest) => (
-                    <label
-                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 has-checked:border-foreground has-checked:bg-muted"
-                      key={interest.id}
-                    >
-                      <input
-                        className="size-4 accent-foreground"
-                        name="interest"
-                        type="checkbox"
-                        value={interest.id}
-                      />
-                      <span>{interest.topic}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-              {request.status === "error" &&
-              request.field === "interests" ? (
-                <p
-                  className="mt-3 text-sm text-destructive"
-                  id="interests-error"
-                  role="alert"
-                >
-                  {request.message}
-                </p>
-              ) : null}
-            </fieldset>
-
-            <div className="mt-6 max-w-sm">
-              <Label htmlFor="scheduled-for">Ready by</Label>
-              <Input
-                aria-describedby={
-                  request.status === "error" && request.field === "schedule"
-                    ? "schedule-error"
-                    : undefined
-                }
-                aria-invalid={
-                  request.status === "error" && request.field === "schedule"
-                }
-                className="mt-2 h-11 px-3 text-base md:text-base"
-                defaultValue={scheduleDefaults.value}
-                id="scheduled-for"
-                min={scheduleDefaults.min}
-                name="scheduledFor"
-                required
-                type="datetime-local"
-              />
+          {scheduleOpen ? (
+            <div className="mt-6 flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-end">
+              <div className="max-w-sm flex-1">
+                <Label htmlFor="scheduled-for">Have it ready by</Label>
+                <Input
+                  aria-describedby={
+                    request.status === "error" && request.field === "schedule"
+                      ? "schedule-error"
+                      : undefined
+                  }
+                  aria-invalid={request.status === "error" && request.field === "schedule"}
+                  className="mt-2 h-11 px-3 text-base md:text-base"
+                  defaultValue={scheduleDefaults.value}
+                  id="scheduled-for"
+                  min={scheduleDefaults.min}
+                  name="scheduledFor"
+                  required
+                  type="datetime-local"
+                />
+              </div>
+              <Button
+                className="h-11 px-4"
+                disabled={request.status === "submitting"}
+                name="action"
+                type="submit"
+                value="schedule"
+              >
+                {request.status === "submitting" ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                ) : null}
+                Schedule podcast
+              </Button>
               {request.status === "error" && request.field === "schedule" ? (
-                <p
-                  className="mt-3 text-sm text-destructive"
-                  id="schedule-error"
-                  role="alert"
-                >
+                <p className="text-sm text-destructive sm:pb-3" id="schedule-error" role="alert">
                   {request.message}
                 </p>
               ) : null}
             </div>
+          ) : null}
 
-            <Button
-              className="mt-6 h-11 px-4"
-              disabled={request.status === "submitting" || interests.length === 0}
-              type="submit"
-            >
-              {request.status === "submitting" ? (
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="animate-spin motion-reduce:animate-none"
-                />
-              ) : null}
-              Schedule podcast
-            </Button>
-            {actionError ? (
-              <p className="mt-3 text-sm text-destructive" role="alert">
-                {actionError}
-              </p>
-            ) : null}
-          </form>
-        ) : null}
+          {actionError ? (
+            <p className="mt-4 text-sm text-destructive" role="alert">
+              {actionError}
+            </p>
+          ) : null}
+        </form>
 
         {loadError ? (
           <p className="mt-4 text-sm text-destructive" role="alert">

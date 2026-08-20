@@ -88,7 +88,9 @@ export async function generateLearningArticle(options: {
   const draft = await runStructured({
     schema: articleDraftSchema,
     schemaName: "podcast_learning_article",
-    maxOutputTokens: 7_000,
+    model: process.env.OPENAI_EDITOR_MODEL ?? "gpt-5.6-luna",
+    reasoningEffort: "none",
+    maxOutputTokens: 3_600,
     instructions: `You are Yappa's evidence-disciplined learning editor. Turn a verified two-sided podcast transcript into a clear, balanced long-form article.
 
 Write 900-1,800 words across 5-7 titled sections, with 2-4 substantial paragraphs per section. Open with the core tension, explain the strongest case on each side, surface the meaningful concessions, and end with what remains unresolved. Preserve uncertainty and disagreement instead of declaring a winner.

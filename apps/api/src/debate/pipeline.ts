@@ -19,6 +19,10 @@ import { verifySide } from "./verification-agent";
 
 const artifactRoot = resolve(import.meta.dir, "../../../../data/podcasts");
 
+export function audioWordLimit(durationMinutes: number) {
+  return durationMinutes * 150;
+}
+
 async function updatePodcast(
   id: string,
   values: Partial<Omit<Podcast, "id" | "createdAt">>,
@@ -109,6 +113,7 @@ function createReport(
 export async function runPodcastGeneration(options: {
   id: string;
   topic: string;
+  durationMinutes: number;
   maxIterations: number;
 }) {
   assertRequiredCredentials();
@@ -151,7 +156,10 @@ export async function runPodcastGeneration(options: {
     resolve(directory, "report.json"),
   );
   if (cachedTranscript && cachedReport?.approved) {
-    const preview = toFishAudioText(cachedTranscript, 90);
+    const preview = toFishAudioText(
+      cachedTranscript,
+      audioWordLimit(options.durationMinutes),
+    );
     const audioPath = resolve(directory, "preview.mp3");
     await setStage(options.id, "synthesizing", 88);
     await synthesizeDebatePreview(preview.text, audioPath);
@@ -169,6 +177,7 @@ export async function runPodcastGeneration(options: {
     topic: options.topic,
     sideA,
     sideB,
+    durationMinutes: options.durationMinutes,
     maxIterations: options.maxIterations,
     onIteration: async (artifact) => {
       await Promise.all([
@@ -185,7 +194,10 @@ export async function runPodcastGeneration(options: {
     },
   });
 
-  const preview = toFishAudioText(best.transcript, 90);
+  const preview = toFishAudioText(
+    best.transcript,
+    audioWordLimit(options.durationMinutes),
+  );
   const sourceVerification = Math.round((sideA.score + sideB.score) / 2);
   const report = createReport(
     artifacts,

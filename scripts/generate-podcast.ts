@@ -15,7 +15,7 @@ const apiUrl = process.env.API_URL ?? "http://localhost:3101";
 const created = await fetch(`${apiUrl}/podcasts`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ topic, maxIterations: 5 }),
+  body: JSON.stringify({ topic, maxIterations: 2 }),
 });
 
 if (!created.ok) {

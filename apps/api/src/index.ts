@@ -16,7 +16,13 @@ import { getPodcastSchedule } from "./podcast-schedule";
 
 const createPodcastSchema = z.object({
   topic: z.string().trim().min(8).max(240),
-  maxIterations: z.number().int().min(3).max(10).default(5),
+  durationMinutes: z.union([
+    z.literal(1),
+    z.literal(3),
+    z.literal(5),
+    z.literal(8),
+  ]).default(1),
+  maxIterations: z.number().int().min(1).max(3).default(2),
   scheduledFor: z.string().datetime({ offset: true }).optional(),
 });
 
@@ -26,6 +32,7 @@ const createInterestSchema = z.object({
 
 const activeJobs = new Set<string>();
 const activeArticleJobs = new Set<string>();
+const defaultTranscriptIterations = 2;
 const configuredConcurrency = Number.parseInt(
   process.env.MAX_CONCURRENT_PODCASTS ?? "1",
   10,
@@ -54,6 +61,7 @@ function toPodcastSummary(podcast: typeof podcasts.$inferSelect) {
     title: podcast.title,
     status: podcast.status,
     progress: podcast.progress,
+    durationMinutes: podcast.durationMinutes,
     transcriptIterations: podcast.transcriptIterations,
     qualityScore: podcast.qualityScore,
     error: podcast.error,
@@ -72,6 +80,7 @@ function parseStoredJson(value: string | null) {
 function startPodcastJob(options: {
   id: string;
   topic: string;
+  durationMinutes: number;
   maxIterations: number;
 }) {
   activeJobs.add(options.id);
@@ -103,7 +112,12 @@ async function startScheduledPodcasts() {
 
   for (const podcast of scheduled) {
     if (!activeJobs.has(podcast.id)) {
-      startPodcastJob({ id: podcast.id, topic: podcast.topic, maxIterations: 5 });
+      startPodcastJob({
+        id: podcast.id,
+        topic: podcast.topic,
+        durationMinutes: podcast.durationMinutes,
+        maxIterations: defaultTranscriptIterations,
+      });
     }
   }
 }
@@ -190,8 +204,15 @@ export const app = new Hono()
 
     const parsed = createPodcastSchema.safeParse(body);
     if (!parsed.success) {
+      const invalidDuration = parsed.error.issues.some(
+        (issue) => issue.path[0] === "durationMinutes",
+      );
       return context.json(
-        { error: "Topic must be between 8 and 240 characters." },
+        {
+          error: invalidDuration
+            ? "Episode length must be 1, 3, 5, or 8 minutes."
+            : "Topic must be between 8 and 240 characters.",
+        },
         400,
       );
     }
@@ -213,6 +234,7 @@ export const app = new Hono()
       title: parsed.data.topic,
       status: schedule.status,
       progress: schedule.progress,
+      durationMinutes: parsed.data.durationMinutes,
       transcriptIterations: 0,
       qualityScore: null,
       transcript: null,
@@ -231,6 +253,7 @@ export const app = new Hono()
       startPodcastJob({
         id,
         topic: parsed.data.topic,
+        durationMinutes: parsed.data.durationMinutes,
         maxIterations: parsed.data.maxIterations,
       });
     } else {
@@ -278,7 +301,12 @@ export const app = new Hono()
       })
       .where(eq(podcasts.id, podcast.id));
 
-    startPodcastJob({ id: podcast.id, topic: podcast.topic, maxIterations: 5 });
+    startPodcastJob({
+      id: podcast.id,
+      topic: podcast.topic,
+      durationMinutes: podcast.durationMinutes,
+      maxIterations: defaultTranscriptIterations,
+    });
     return context.json(toPodcastSummary(retried), 202);
   })
   .get("/podcasts/:id/audio", async (context) => {

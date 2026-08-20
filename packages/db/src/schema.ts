@@ -12,6 +12,7 @@ export const podcasts = sqliteTable("podcasts", {
   title: text("title").notNull(),
   status: text("status").notNull(),
   progress: integer("progress").notNull(),
+  durationMinutes: integer("duration_minutes").notNull().default(1),
   transcriptIterations: integer("transcript_iterations").notNull(),
   qualityScore: integer("quality_score"),
   transcript: text("transcript"),
