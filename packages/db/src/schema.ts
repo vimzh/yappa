@@ -1,13 +1,45 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-export const interests = sqliteTable("interests", {
+export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
-  topic: text("topic").notNull().unique(),
+  googleSubject: text("google_subject").notNull().unique(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  picture: text("picture"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("sessions_user_id_idx").on(table.userId)],
+);
+
+export const interests = sqliteTable(
+  "interests",
+  {
+    id: text("id").primaryKey(),
+    // Nullable during the one-time migration so existing local records are preserved.
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    topic: text("topic").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [uniqueIndex("interests_user_topic_unique").on(table.userId, table.topic)],
+);
 
 export const podcasts = sqliteTable("podcasts", {
   id: text("id").primaryKey(),
+  // Nullable during the one-time migration so existing local records are preserved.
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
   topic: text("topic").notNull(),
   title: text("title").notNull(),
   status: text("status").notNull(),

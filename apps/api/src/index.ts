@@ -14,6 +14,7 @@ import {
   transcriptSchema,
 } from "./debate/schemas";
 import { getPodcastSchedule } from "./podcast-schedule";
+import { finishGoogleOAuth, getAuthUser, signOut, startGoogleOAuth, type AuthUser } from "./auth";
 
 const createPodcastSchema = z.object({
   topic: z.string().trim().min(8).max(240).optional(),
@@ -33,6 +34,11 @@ const createInterestSchema = z.object({
 
 const activeJobs = new Set<string>();
 const activeArticleJobs = new Set<string>();
+const allowedWebOrigins = new Set([
+  process.env.WEB_ORIGIN ?? "http://localhost:3000",
+  "http://localhost:3000",
+  "http://localhost:5050",
+]);
 const defaultTranscriptIterations = 2;
 const configuredConcurrency = Number.parseInt(
   process.env.MAX_CONCURRENT_PODCASTS ?? "1",
@@ -73,6 +79,11 @@ function toPodcastSummary(podcast: typeof podcasts.$inferSelect) {
     createdAt: podcast.createdAt.toISOString(),
     updatedAt: podcast.updatedAt.toISOString(),
   };
+}
+
+function toPublicPodcastSummary(podcast: typeof podcasts.$inferSelect) {
+  const { cost: _cost, ...summary } = toPodcastSummary(podcast);
+  return summary;
 }
 
 function parseStoredJson(value: string | null) {
@@ -132,18 +143,67 @@ async function startScheduledPodcasts() {
 void startScheduledPodcasts();
 setInterval(() => void startScheduledPodcasts(), 10_000).unref();
 
-export const app = new Hono()
+type AppVariables = { user: AuthUser };
+
+export const app = new Hono<{ Variables: AppVariables }>()
   .use(
     "*",
-    cors({ origin: process.env.WEB_ORIGIN ?? "http://localhost:3000" }),
+    cors({
+      origin: (origin) => (allowedWebOrigins.has(origin) ? origin : undefined),
+      credentials: true,
+    }),
   )
+  .use("*", async (context, next) => {
+    const publicPodcastRead =
+      context.req.method === "GET" &&
+      (/^\/podcasts\/[a-zA-Z0-9-]+(?:\/audio)?$/.test(context.req.path) ||
+        context.req.path === "/podcasts");
+    if (
+      ["/", "/health", "/auth/google", "/auth/google/callback"].includes(context.req.path) ||
+      publicPodcastRead
+    ) {
+      return next();
+    }
+
+    const user = await getAuthUser(context);
+    if (!user) return context.json({ error: "Sign in to continue." }, 401);
+    context.set("user", user);
+    return next();
+  })
   .get("/", (context) => context.json({ service: "yappa-api" }))
   .get("/health", (context) => {
     db.run(sql`select 1`);
     return context.json({ status: "ok", database: "sqlite" });
   })
+  .get("/auth/google", (context) => {
+    try {
+      return startGoogleOAuth(context);
+    } catch {
+      return context.json({ error: "Google OAuth is not configured." }, 503);
+    }
+  })
+  .get("/auth/google/callback", async (context) => {
+    try {
+      await finishGoogleOAuth(context);
+      return context.redirect(new URL("/home", process.env.WEB_ORIGIN ?? "http://localhost:3000").toString());
+    } catch (error) {
+      console.error("Google OAuth failed", {
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+      return context.redirect(new URL("/sign-in?error=oauth", process.env.WEB_ORIGIN ?? "http://localhost:3000").toString());
+    }
+  })
+  .get("/auth/me", (context) => {
+    const user = context.get("user");
+    return context.json({ id: user.id, email: user.email, name: user.name, picture: user.picture });
+  })
+  .post("/auth/logout", async (context) => {
+    await signOut(context);
+    return new Response(null, { status: 204 });
+  })
   .get("/interests", async (context) => {
-    const rows = await db.select().from(interests).orderBy(asc(interests.createdAt));
+    const user = context.get("user");
+    const rows = await db.select().from(interests).where(eq(interests.userId, user.id)).orderBy(asc(interests.createdAt));
     return context.json(
       rows.map((interest) => ({
         ...interest,
@@ -152,6 +212,7 @@ export const app = new Hono()
     );
   })
   .post("/interests", async (context) => {
+    const user = context.get("user");
     let body: unknown;
     try {
       body = await context.req.json();
@@ -170,7 +231,7 @@ export const app = new Hono()
     const [existing] = await db
       .select({ id: interests.id })
       .from(interests)
-      .where(eq(interests.topic, parsed.data.topic))
+      .where(and(eq(interests.userId, user.id), eq(interests.topic, parsed.data.topic)))
       .limit(1);
     if (existing) {
       return context.json({ error: "That interest already exists." }, 409);
@@ -178,6 +239,7 @@ export const app = new Hono()
 
     const interest = {
       id: crypto.randomUUID(),
+      userId: user.id,
       topic: parsed.data.topic,
       createdAt: new Date(),
     };
@@ -188,9 +250,10 @@ export const app = new Hono()
     );
   })
   .delete("/interests/:id", async (context) => {
+    const user = context.get("user");
     const deleted = await db
       .delete(interests)
-      .where(eq(interests.id, context.req.param("id")))
+      .where(and(eq(interests.id, context.req.param("id")), eq(interests.userId, user.id)))
       .returning({ id: interests.id });
     if (deleted.length === 0) {
       return context.json({ error: "Interest not found." }, 404);
@@ -199,10 +262,11 @@ export const app = new Hono()
   })
   .get("/podcasts", async (context) => {
     const rows = await db.select().from(podcasts).orderBy(desc(podcasts.createdAt));
-    return context.json(rows.map(toPodcastSummary));
+    return context.json(rows.map(toPublicPodcastSummary));
   })
   .get("/costs", async (context) => {
-    const rows = await db.select().from(podcasts).orderBy(desc(podcasts.createdAt));
+    const user = context.get("user");
+    const rows = await db.select().from(podcasts).where(eq(podcasts.userId, user.id)).orderBy(desc(podcasts.createdAt));
     return context.json({
       totals: summarizeCosts(rows),
       podcasts: rows.map((podcast) => ({
@@ -215,6 +279,7 @@ export const app = new Hono()
     });
   })
   .delete("/podcasts/:id", async (context) => {
+    const user = context.get("user");
     const id = context.req.param("id");
     if (activeJobs.has(id) || activeArticleJobs.has(id)) {
       return context.json(
@@ -226,17 +291,18 @@ export const app = new Hono()
     const [podcast] = await db
       .select({ id: podcasts.id })
       .from(podcasts)
-      .where(eq(podcasts.id, id))
+      .where(and(eq(podcasts.id, id), eq(podcasts.userId, user.id)))
       .limit(1);
     if (!podcast) {
       return context.json({ error: "Podcast not found." }, 404);
     }
 
     await removePodcastArtifacts(id);
-    await db.delete(podcasts).where(eq(podcasts.id, id));
+    await db.delete(podcasts).where(and(eq(podcasts.id, id), eq(podcasts.userId, user.id)));
     return new Response(null, { status: 204 });
   })
   .post("/podcasts", async (context) => {
+    const user = context.get("user");
     let body: unknown;
     try {
       body = await context.req.json();
@@ -273,6 +339,7 @@ export const app = new Hono()
       const [interest] = await db
         .select({ topic: interests.topic })
         .from(interests)
+        .where(eq(interests.userId, user.id))
         .orderBy(desc(interests.createdAt))
         .limit(1);
       if (!interest) {
@@ -296,6 +363,7 @@ export const app = new Hono()
     const now = new Date();
     const podcast = {
       id,
+      userId: user.id,
       topic,
       title: topic,
       status: schedule.status,
@@ -341,6 +409,7 @@ export const app = new Hono()
     return context.json(toPodcastSummary(podcast), 202);
   })
   .post("/podcasts/:id/retry", async (context) => {
+    const user = context.get("user");
     if (activeJobs.size >= maxConcurrentPodcasts) {
       return context.json(
         { error: "A podcast is already generating. Wait for it to finish." },
@@ -351,7 +420,7 @@ export const app = new Hono()
     const [podcast] = await db
       .select()
       .from(podcasts)
-      .where(eq(podcasts.id, context.req.param("id")))
+      .where(and(eq(podcasts.id, context.req.param("id")), eq(podcasts.userId, user.id)))
       .limit(1);
 
     if (!podcast) {
@@ -377,7 +446,7 @@ export const app = new Hono()
         error: retried.error,
         updatedAt: retried.updatedAt,
       })
-      .where(eq(podcasts.id, podcast.id));
+      .where(and(eq(podcasts.id, podcast.id), eq(podcasts.userId, user.id)));
 
     startPodcastJob({
       id: podcast.id,
@@ -436,11 +505,12 @@ export const app = new Hono()
     });
   })
   .post("/podcasts/:id/article", async (context) => {
+    const user = context.get("user");
     const id = context.req.param("id");
     const [podcast] = await db
       .select()
       .from(podcasts)
-      .where(eq(podcasts.id, id))
+      .where(and(eq(podcasts.id, id), eq(podcasts.userId, user.id)))
       .limit(1);
 
     if (!podcast) {
@@ -481,7 +551,7 @@ export const app = new Hono()
       await db
         .update(podcasts)
         .set({ article: JSON.stringify(article), updatedAt: new Date() })
-        .where(eq(podcasts.id, id));
+        .where(and(eq(podcasts.id, id), eq(podcasts.userId, user.id)));
       return context.json(article, 201);
     } catch (error) {
       console.error("Article generation failed", {
@@ -505,7 +575,7 @@ export const app = new Hono()
     }
 
     return context.json({
-      ...toPodcastSummary(podcast),
+      ...toPublicPodcastSummary(podcast),
       transcript: parseStoredJson(podcast.transcript),
       sources: parseStoredJson(podcast.sources),
       report: parseStoredJson(podcast.report),

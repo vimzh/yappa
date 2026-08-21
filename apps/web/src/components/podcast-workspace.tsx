@@ -6,6 +6,7 @@ import { CalendarClock, Clock3, LoaderCircle, Pause, Play } from "lucide-react";
 
 import { AudioPlayer } from "@/components/audio-player";
 import { readApiJson } from "@/lib/api-response";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
 
 const activeStatuses = new Set([
   "queued",
@@ -160,6 +160,7 @@ function ReadyPodcastHero({ podcast }: { podcast: Podcast }) {
         </div>
       </div>
       <audio
+        crossOrigin="use-credentials"
         onEnded={() => setPlaying(false)}
         onPause={() => setPlaying(false)}
         onPlay={() => {
@@ -483,7 +484,7 @@ export function PodcastWorkspace() {
 
     async function refreshPodcasts() {
       try {
-        const response = await fetch(`${apiUrl}/podcasts`);
+        const response = await apiFetch("/podcasts");
         if (!response.ok) throw new Error(`API returned ${response.status}.`);
         const data = (await response.json()) as Podcast[];
         if (mounted) {
@@ -552,7 +553,7 @@ export function PodcastWorkspace() {
     setRequest({ status: "submitting" });
 
     try {
-      const response = await fetch(`${apiUrl}/podcasts`, {
+      const response = await apiFetch("/podcasts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -593,7 +594,7 @@ export function PodcastWorkspace() {
     setRequest({ status: "retrying", id: podcast.id });
 
     try {
-      const response = await fetch(`${apiUrl}/podcasts/${podcast.id}/retry`, {
+      const response = await apiFetch(`/podcasts/${podcast.id}/retry`, {
         method: "POST",
       });
       const body = (await readApiJson(response)) as Podcast | { error: string };

@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AudioPlayer } from "@/components/audio-player";
+import { apiFetch, apiUrl } from "@/lib/api";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
 
 type Podcast = {
   id: string;
@@ -26,7 +26,7 @@ export function RecordingsLibrary() {
 
     async function refresh() {
       try {
-        const response = await fetch(`${apiUrl}/podcasts`);
+        const response = await apiFetch("/podcasts");
         if (!response.ok) throw new Error(`API returned ${response.status}.`);
         const data = (await response.json()) as Podcast[];
         if (mounted) {

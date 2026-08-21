@@ -107,6 +107,7 @@ export function AudioPlayer({
       </div>
 
       <audio
+        crossOrigin="use-credentials"
         onLoadedMetadata={() => setFailed(false)}
         onDurationChange={(event) =>
           setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)

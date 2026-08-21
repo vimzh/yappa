@@ -17,8 +17,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { apiFetch, apiUrl } from "@/lib/api";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
 
 type Source = {
   title: string;
@@ -236,7 +236,7 @@ export function PodcastDetail({ id }: { id: string }) {
 
     async function loadPodcast() {
       try {
-        const response = await fetch(`${apiUrl}/podcasts/${id}`);
+        const response = await apiFetch(`/podcasts/${id}`);
         const body: unknown = await response.json();
         if (!response.ok) {
           throw new Error(readError(body, "Podcast could not be loaded."));
@@ -263,7 +263,7 @@ export function PodcastDetail({ id }: { id: string }) {
 
     const interval = window.setInterval(async () => {
       try {
-        const response = await fetch(`${apiUrl}/podcasts/${id}`);
+        const response = await apiFetch(`/podcasts/${id}`);
         const body: unknown = await response.json();
         if (!response.ok || !(body as Podcast).article) return;
         setState({ status: "ready", podcast: body as Podcast });
@@ -284,7 +284,7 @@ export function PodcastDetail({ id }: { id: string }) {
     let waitingForExistingArticle = false;
 
     try {
-      const response = await fetch(`${apiUrl}/podcasts/${id}/article`, {
+      const response = await apiFetch(`/podcasts/${id}/article`, {
         method: "POST",
       });
       const body: unknown = await response.json();
@@ -314,7 +314,7 @@ export function PodcastDetail({ id }: { id: string }) {
     setDeleteError(null);
 
     try {
-      const response = await fetch(`${apiUrl}/podcasts/${id}`, { method: "DELETE" });
+      const response = await apiFetch(`/podcasts/${id}`, { method: "DELETE" });
       if (!response.ok) {
         throw new Error(readError(await response.json(), "Podcast could not be deleted."));
       }

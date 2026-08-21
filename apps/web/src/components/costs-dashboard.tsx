@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { apiFetch } from "@/lib/api";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
 
 type PodcastCost = {
   metered: boolean;
@@ -77,7 +77,7 @@ export function CostsDashboard() {
 
     async function loadCosts() {
       try {
-        const response = await fetch(`${apiUrl}/costs`);
+        const response = await apiFetch("/costs");
         if (!response.ok) throw new Error(`API returned ${response.status}.`);
         if (mounted) {
           setData((await response.json()) as CostResponse);

@@ -6,8 +6,8 @@ import { LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiFetch } from "@/lib/api";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
 
 type Interest = {
   id: string;
@@ -27,7 +27,7 @@ export function InterestsManager() {
 
     async function loadInterests() {
       try {
-        const response = await fetch(`${apiUrl}/interests`);
+        const response = await apiFetch("/interests");
         if (!response.ok) throw new Error();
         const data = (await response.json()) as Interest[];
         if (mounted) {
@@ -61,7 +61,7 @@ export function InterestsManager() {
     setError(null);
 
     try {
-      const response = await fetch(`${apiUrl}/interests`, {
+      const response = await apiFetch("/interests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic }),
@@ -85,7 +85,7 @@ export function InterestsManager() {
     setError(null);
 
     try {
-      const response = await fetch(`${apiUrl}/interests/${interest.id}`, {
+      const response = await apiFetch(`/interests/${interest.id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Interest could not be removed.");
