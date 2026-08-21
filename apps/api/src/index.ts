@@ -23,6 +23,7 @@ const createPodcastSchema = z.object({
     z.literal(3),
     z.literal(5),
     z.literal(8),
+    z.literal(10),
   ]).default(1),
   maxIterations: z.number().int().min(1).max(3).default(2),
   scheduledFor: z.string().datetime({ offset: true }).optional(),
@@ -190,7 +191,7 @@ export const app = new Hono<{ Variables: AppVariables }>()
       console.error("Google OAuth failed", {
         message: error instanceof Error ? error.message : "Unknown error",
       });
-      return context.redirect(new URL("/sign-in?error=oauth", process.env.WEB_ORIGIN ?? "http://localhost:3000").toString());
+      return context.redirect(new URL("/?auth=oauth", process.env.WEB_ORIGIN ?? "http://localhost:3000").toString());
     }
   })
   .get("/auth/me", (context) => {
@@ -318,7 +319,7 @@ export const app = new Hono<{ Variables: AppVariables }>()
       return context.json(
         {
           error: invalidDuration
-            ? "Episode length must be 1, 3, 5, or 8 minutes."
+            ? "Episode length must be 1, 3, 5, 8, or 10 minutes."
             : "Topic must be between 8 and 240 characters.",
         },
         400,

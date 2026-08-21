@@ -2,8 +2,39 @@
 
 // Sticky landing-page navigation with a scroll-aware separation rule.
 import { Button } from "@/components/ui/button";
+import { apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+
+function AuthAction() {
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    void apiFetch("/auth/me")
+      .then((response) => {
+        if (active) setSignedIn(response.ok);
+      })
+      .catch(() => {
+        if (active) setSignedIn(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <Button
+      className="min-h-11 px-3 sm:px-5"
+      nativeButton={false}
+      render={<Link href="/home" />}
+    >
+      {signedIn ? "Home" : "Login"}
+    </Button>
+  );
+}
 
 export function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -18,13 +49,13 @@ export function LandingHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-40 mx-auto w-full max-w-5xl bg-background/95 backdrop-blur-sm after:absolute after:left-1/2 after:top-full after:w-screen after:-translate-x-1/2 after:border-b after:content-[''] ${
+      className={`sticky top-0 z-40 -mx-5 w-[calc(100%+2.5rem)] bg-background after:absolute after:left-1/2 after:top-full after:w-screen after:-translate-x-1/2 after:border-b after:content-[''] sm:-mx-8 sm:w-[calc(100%+4rem)] ${
         scrolled ? "after:border-border" : "after:border-transparent"
       }`}
     >
-      <div className="relative flex min-h-16 items-center justify-between">
+      <div className="relative mx-auto flex min-h-16 w-full max-w-5xl items-center justify-between px-5 sm:px-8 lg:px-0">
         <Link
-          aria-label="Yappa home"
+          aria-label="Yappa.ai home"
           className="flex min-h-11 items-center gap-2 font-mono text-sm font-medium tracking-[-0.02em]"
           href="/"
         >
@@ -37,12 +68,12 @@ export function LandingHeader() {
               strokeWidth="2"
             />
           </svg>
-          Yappa
+          Yappa.ai
         </Link>
 
         <nav
           aria-label="Primary navigation"
-          className="absolute left-1/2 flex -translate-x-1/2 items-center gap-3 text-sm text-muted-foreground sm:gap-6 sm:text-base"
+          className="hidden items-center gap-3 text-sm text-muted-foreground sm:absolute sm:left-1/2 sm:flex sm:-translate-x-1/2 sm:gap-6 sm:text-base"
         >
           <a className="flex min-h-11 items-center hover:text-foreground" href="https://github.com">
             GitHub
@@ -53,15 +84,12 @@ export function LandingHeader() {
           <a className="flex min-h-11 items-center hover:text-foreground" href="#philosophy">
             Philosophy
           </a>
+          <Link className="flex min-h-11 items-center hover:text-foreground" href="/pricing">
+            Pricing
+          </Link>
         </nav>
 
-        <Button
-          className="min-h-11 px-3 sm:px-5"
-          nativeButton={false}
-          render={<Link href="/home" />}
-        >
-          Try now
-        </Button>
+        <AuthAction />
       </div>
     </header>
   );

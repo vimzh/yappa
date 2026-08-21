@@ -107,7 +107,7 @@ export function InterestsManager() {
           Interests
         </h1>
         <p className="mt-3 text-lg text-muted-foreground">
-          Save the topics you want Yappa to turn into future debates.
+          Save the topics you want Yappa.ai to turn into future debates.
         </p>
       </header>
 

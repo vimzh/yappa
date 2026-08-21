@@ -34,8 +34,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Yappa",
-  description: "A debate-based podcast learning platform powered by two opposing LLMs.",
+  title: "Yappa.ai",
+  description: "Yappa.ai is a debate-based podcast learning platform powered by two opposing LLMs.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

@@ -23,6 +23,22 @@ export function Sidebar() {
   return (
     <>
       <aside className="sticky top-0 hidden h-svh w-16 shrink-0 self-start flex-col border-r border-border px-2 py-5 sm:flex lg:w-56 lg:px-3">
+        <Link
+          aria-label="Yappa.ai home"
+          className="mb-8 flex min-h-11 items-center justify-center gap-2 px-3 font-mono text-sm font-medium tracking-[-0.02em] lg:justify-start"
+          href="/home"
+        >
+          <svg aria-hidden="true" className="size-5 shrink-0" fill="none" viewBox="0 0 24 24">
+            <path
+              d="m5 4 7 8 7-8M12 12v8"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+          <span className="hidden lg:inline">Yappa.ai</span>
+        </Link>
         <nav aria-label="Primary navigation" className="flex flex-1 flex-col gap-1">
           {items.map(({ label, href, icon: Icon }) => (
             <Link

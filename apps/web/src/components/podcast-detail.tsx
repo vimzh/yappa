@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, LoaderCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, LoaderCircle, Trash2 } from "lucide-react";
 
 import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,19 @@ type Article = {
   readingMinutes: number;
 };
 
+type Transcript = {
+  title: string;
+  summary: string;
+  turns: Array<{
+    speaker: "A" | "B";
+    delivery: string;
+    text: string;
+    pauseAfter: string;
+    claimIds: string[];
+  }>;
+  conclusion: string;
+};
+
 type Podcast = {
   id: string;
   topic: string;
@@ -46,7 +59,7 @@ type Podcast = {
   qualityScore: number | null;
   hasAudio: boolean;
   createdAt: string;
-  transcript: { summary: string; conclusion: string } | null;
+  transcript: Transcript | null;
   sources: Source[] | null;
   article: Article | null;
 };
@@ -223,6 +236,52 @@ function ArticlePrompt({
   );
 }
 
+function TranscriptDialog({
+  podcastTitle,
+  transcript,
+}: {
+  podcastTitle: string;
+  transcript: Transcript;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger render={<Button className="h-11 shrink-0 px-4" variant="outline" />}>
+        <FileText aria-hidden="true" className="size-4" />
+        Transcript
+      </DialogTrigger>
+      <DialogContent className="max-h-[85svh] min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Full transcript</DialogTitle>
+          <DialogDescription>
+            {podcastTitle} · {transcript.turns.length} turns
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="min-h-0 overflow-y-auto pr-2">
+          <div className="space-y-5">
+            {transcript.turns.map((turn, index) => (
+              <div
+                className="grid gap-2 border-b border-border pb-5 last:border-0 last:pb-0 sm:grid-cols-[5rem_minmax(0,1fr)]"
+                key={`${turn.speaker}-${index}`}
+              >
+                <p className="font-mono text-xs text-muted-foreground">
+                  {turn.speaker === "A" ? "Maya" : "Rowan"}
+                </p>
+                <p className="leading-relaxed">{turn.text}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 border-t pt-5">
+            <p className="font-mono text-xs text-muted-foreground">Conclusion</p>
+            <p className="mt-2 leading-relaxed">{transcript.conclusion}</p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PodcastDetail({ id }: { id: string }) {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -392,12 +451,19 @@ export function PodcastDetail({ id }: { id: string }) {
         </p>
       </header>
 
-      {podcast.hasAudio ? (
-        <AudioPlayer
-          className="mt-10 max-w-2xl"
-          src={`${apiUrl}/podcasts/${podcast.id}/audio`}
-          title={podcast.title}
-        />
+      {podcast.hasAudio || podcast.transcript?.turns.length ? (
+        <div className="mt-10 flex max-w-2xl flex-col gap-3 sm:flex-row sm:items-center">
+          {podcast.hasAudio ? (
+            <AudioPlayer
+              className="flex-1"
+              src={`${apiUrl}/podcasts/${podcast.id}/audio`}
+              title={podcast.title}
+            />
+          ) : null}
+          {podcast.transcript?.turns.length ? (
+            <TranscriptDialog podcastTitle={podcast.title} transcript={podcast.transcript} />
+          ) : null}
+        </div>
       ) : null}
 
       {podcast.article ? (

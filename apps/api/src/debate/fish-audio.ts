@@ -1,5 +1,26 @@
 const defaultVoiceA = "7ff4ca1837d745ea973471a8fba735e4";
 const defaultVoiceB = "77974fed34614080a505a797bb96357b";
+const fishStreamTimeoutMs = 10 * 60_000;
+
+export function parseFishAudioEvent(data: string) {
+  const event = JSON.parse(data) as {
+    audio_base64?: unknown;
+    message?: unknown;
+    status?: unknown;
+  };
+
+  if (
+    typeof event.message === "string" &&
+    typeof event.status === "number" &&
+    event.status >= 400
+  ) {
+    throw new Error(`Fish Audio streaming error: ${event.message}`);
+  }
+
+  if (typeof event.audio_base64 !== "string") return null;
+  const audio = Buffer.from(event.audio_base64, "base64");
+  return audio.length > 0 ? audio : null;
+}
 
 async function assertVoiceAvailable(apiKey: string, id: string) {
   const response = await fetch(`https://api.fish.audio/model/${id}`, {
@@ -26,13 +47,13 @@ export async function synthesizeDebatePreview(text: string, outputPath: string) 
 
   const model = process.env.FISH_TTS_MODEL ?? "s2.1-pro-free";
 
-  // One request and no automatic retry: this preview must conserve Fish credits.
-  const response = await fetch("https://api.fish.audio/v1/tts", {
+  const response = await fetch("https://api.fish.audio/v1/tts/stream/with-timestamp", {
     method: "POST",
-    signal: AbortSignal.timeout(180_000),
+    signal: AbortSignal.timeout(fishStreamTimeoutMs),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      Accept: "text/event-stream",
       model,
     },
     body: JSON.stringify({
@@ -45,12 +66,12 @@ export async function synthesizeDebatePreview(text: string, outputPath: string) 
         volume: 0,
         normalize_loudness: true,
       },
-      chunk_length: 220,
+      chunk_length: 300,
       normalize: true,
       format: "mp3",
       sample_rate: 44_100,
       mp3_bitrate: 128,
-      latency: "normal",
+      latency: "balanced",
       max_new_tokens: 1_024,
       repetition_penalty: 1.2,
       min_chunk_length: 50,
@@ -67,8 +88,39 @@ export async function synthesizeDebatePreview(text: string, outputPath: string) 
     );
   }
 
-  const audio = await response.arrayBuffer();
-  if (audio.byteLength < 1_024) {
+  if (!response.body) {
+    throw new Error("Fish Audio streaming response had no body.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: Buffer[] = [];
+  let buffer = "";
+
+  const consumeEvent = (event: string) => {
+    const data = event
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("\n");
+
+    if (!data || data === "[DONE]") return;
+    const audio = parseFishAudioEvent(data);
+    if (audio) chunks.push(audio);
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const events = buffer.split(/\r?\n\r?\n/);
+    buffer = events.pop() ?? "";
+    events.forEach(consumeEvent);
+    if (done) break;
+  }
+  if (buffer.trim()) consumeEvent(buffer);
+
+  const audio = Buffer.concat(chunks);
+  if (audio.length < 1_024) {
     throw new Error("Fish Audio returned an unexpectedly small MP3.");
   }
 

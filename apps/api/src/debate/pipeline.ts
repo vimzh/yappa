@@ -15,7 +15,11 @@ import {
   type TranscriptIteration,
   type VerificationBrief,
 } from "./schemas";
-import { iterateTranscript, toFishAudioText } from "./transcript-agent";
+import {
+  iterateTranscript,
+  toFishAudioText,
+  transcriptWordTarget,
+} from "./transcript-agent";
 import { verifySide } from "./verification-agent";
 
 const artifactRoot = resolve(import.meta.dir, "../../../../data/podcasts");
@@ -25,7 +29,7 @@ export async function removePodcastArtifacts(id: string) {
 }
 
 export function audioWordLimit(durationMinutes: number) {
-  return durationMinutes * 150;
+  return transcriptWordTarget(durationMinutes);
 }
 
 async function updatePodcast(
@@ -84,6 +88,7 @@ function createReport(
   selected: TranscriptIteration,
   sourceVerification: number,
   audioPreviewWords: number,
+  audioWordTarget: number,
 ): PodcastReport {
   const finalOverall = Math.round(
     selected.review.overall * 0.75 + sourceVerification * 0.25,
@@ -95,6 +100,7 @@ function createReport(
       selected.review.factualAccuracy >= 88 &&
       selected.review.humanRhythm >= 82 &&
       selected.review.ttsReadiness >= 85 &&
+      audioPreviewWords >= audioWordTarget &&
       finalOverall >= 85,
     transcriptIterations: artifacts.length,
     selectedIteration: selected.iteration,
@@ -168,11 +174,16 @@ export async function runPodcastGeneration(options: {
   const cachedReport = await readJson<PodcastReport>(
     resolve(directory, "report.json"),
   );
-  if (cachedTranscript && cachedReport?.approved) {
-    const preview = toFishAudioText(
-      cachedTranscript,
-      audioWordLimit(options.durationMinutes),
-    );
+  const cachedPreview = cachedTranscript
+    ? toFishAudioText(cachedTranscript, audioWordLimit(options.durationMinutes))
+    : null;
+  if (
+    cachedTranscript &&
+    cachedReport?.approved &&
+    cachedPreview &&
+    cachedPreview.spokenWords >= audioWordLimit(options.durationMinutes)
+  ) {
+    const preview = cachedPreview;
     const audioPath = resolve(directory, "preview.mp3");
     await setStage(options.id, "synthesizing", 88);
     const fish = await synthesizeDebatePreview(preview.text, audioPath);
@@ -219,6 +230,7 @@ export async function runPodcastGeneration(options: {
     best,
     sourceVerification,
     preview.spokenWords,
+    audioWordLimit(options.durationMinutes),
   );
   const sources = uniqueSources(sideA, sideB);
 
@@ -237,6 +249,11 @@ export async function runPodcastGeneration(options: {
   ]);
 
   if (!report.approved) {
+    if (preview.spokenWords < audioWordLimit(options.durationMinutes)) {
+      throw new Error(
+        `Transcript was too short for ${options.durationMinutes} minutes (${preview.spokenWords}/${audioWordLimit(options.durationMinutes)} spoken words).`,
+      );
+    }
     throw new Error(
       `Transcript quality gate failed with a score of ${report.scores.finalOverall}.`,
     );

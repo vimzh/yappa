@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { CalendarClock, Clock3, LoaderCircle, Pause, Play } from "lucide-react";
+import { CalendarClock, Clock3, LoaderCircle, Pause, Play, Plus } from "lucide-react";
 
 import { AudioPlayer } from "@/components/audio-player";
 import { readApiJson } from "@/lib/api-response";
@@ -15,6 +15,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -137,7 +145,7 @@ function ReadyPodcastHero({ podcast }: { podcast: Podcast }) {
           )}
         </Button>
         <div className="min-w-0">
-          <p className="font-mono text-xs uppercase tracking-[0.18em] text-background/65">
+          <p className="font-mono text-xs tracking-[0.18em] text-background/65">
             Your podcast is ready
           </p>
           <h2
@@ -457,6 +465,7 @@ export function PodcastWorkspace() {
   const [loaded, setLoaded] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState(0);
   const [durationMinutes, setDurationMinutes] = useState("1");
+  const [composerOpen, setComposerOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleDefaults, setScheduleDefaults] = useState({
     min: "",
@@ -575,6 +584,7 @@ export function PodcastWorkspace() {
 
       setPodcasts((current) => [body as Podcast, ...current]);
       setRequest({ status: "idle" });
+      setComposerOpen(false);
       setScheduleOpen(false);
       form.reset();
       setDurationMinutes("1");
@@ -638,7 +648,161 @@ export function PodcastWorkspace() {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <h1 className="sr-only">Yappa home</h1>
+      <h1 className="sr-only">Yappa.ai home</h1>
+
+      <div className="mb-6 flex justify-end">
+        <Dialog
+          open={composerOpen}
+          onOpenChange={(open) => {
+            setComposerOpen(open);
+            if (!open) {
+              setRequest({ status: "idle" });
+              setScheduleOpen(false);
+            }
+          }}
+        >
+          <DialogTrigger
+            render={
+              <Button className="h-11 gap-2 px-4" type="button">
+                <Plus aria-hidden="true" />
+                New podcast
+              </Button>
+            }
+          />
+          <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-mono text-2xl tracking-[-0.04em]">
+                New podcast
+              </DialogTitle>
+              <DialogDescription>
+                Pick a question. We’ll build a two-sided podcast around it.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form className="mt-2" onSubmit={handleCreate}>
+              <Label className="sr-only" htmlFor="podcast-topic">
+                Podcast topic
+              </Label>
+              <Input
+                aria-describedby={
+                  request.status === "error" && request.field === "topic"
+                    ? "topic-error"
+                    : undefined
+                }
+                aria-invalid={request.status === "error" && request.field === "topic"}
+                className="h-14 rounded-md px-4 text-base md:text-lg"
+                id="podcast-topic"
+                maxLength={240}
+                name="topic"
+                placeholder="For example: SSR versus CSR for a growing SaaS product"
+                required={!scheduleOpen}
+              />
+              {request.status === "error" && request.field === "topic" ? (
+                <p className="mt-3 text-sm text-destructive" id="topic-error" role="alert">
+                  {request.message}
+                </p>
+              ) : null}
+
+              <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <Label htmlFor="duration-minutes">Episode length</Label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Clock3 aria-hidden="true" className="size-4 text-muted-foreground" />
+                    <Select
+                      name="durationMinutes"
+                      onValueChange={(value) => setDurationMinutes(value ?? "1")}
+                      value={durationMinutes}
+                    >
+                      <SelectTrigger className="h-11 min-w-36" id="duration-minutes">
+                        <SelectValue>{`${durationMinutes} ${durationMinutes === "1" ? "minute" : "minutes"}`}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 minute</SelectItem>
+                        <SelectItem value="3">3 minutes</SelectItem>
+                        <SelectItem value="5">5 minutes</SelectItem>
+                        <SelectItem value="8">8 minutes</SelectItem>
+                        <SelectItem value="10">10 minutes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    className="h-11 px-4"
+                    disabled={request.status === "submitting"}
+                    name="action"
+                    type="submit"
+                    value="now"
+                  >
+                    {request.status === "submitting" && !scheduleOpen ? (
+                      <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                    ) : null}
+                    Create now
+                  </Button>
+                  <Button
+                    aria-expanded={scheduleOpen}
+                    className="h-11 px-4"
+                    onClick={toggleSchedule}
+                    type="button"
+                    variant="outline"
+                  >
+                    Schedule later
+                  </Button>
+                </div>
+              </div>
+
+              {scheduleOpen ? (
+                <div className="mt-6 flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-end">
+                  <div className="max-w-sm flex-1">
+                    <Label htmlFor="scheduled-for">Have it ready by</Label>
+                    <Input
+                      aria-describedby={
+                        request.status === "error" && request.field === "schedule"
+                          ? "schedule-error"
+                          : undefined
+                      }
+                      aria-invalid={request.status === "error" && request.field === "schedule"}
+                      className="mt-2 h-11 px-3 text-base md:text-base"
+                      defaultValue={scheduleDefaults.value}
+                      id="scheduled-for"
+                      min={scheduleDefaults.min}
+                      name="scheduledFor"
+                      required
+                      type="datetime-local"
+                    />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Leave the topic blank to use your most recently saved interest.
+                    </p>
+                  </div>
+                  <Button
+                    className="h-11 px-4"
+                    disabled={request.status === "submitting"}
+                    name="action"
+                    type="submit"
+                    value="schedule"
+                  >
+                    {request.status === "submitting" ? (
+                      <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                    ) : null}
+                    Schedule podcast
+                  </Button>
+                  {request.status === "error" && request.field === "schedule" ? (
+                    <p className="text-sm text-destructive sm:pb-3" id="schedule-error" role="alert">
+                      {request.message}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {actionError ? (
+                <p className="mt-4 text-sm text-destructive" role="alert">
+                  {actionError}
+                </p>
+              ) : null}
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {readyPodcast ? (
         <ReadyPodcastHero key={readyPodcast.id} podcast={readyPodcast} />
@@ -648,150 +812,11 @@ export function PodcastWorkspace() {
         <NextPodcastStatus podcast={nextPodcast} />
       </div>
 
-      <section
-        aria-labelledby="home-heading"
-        className="mt-14"
-      >
-        <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
-          New episode
+      {loadError ? (
+        <p className="mt-4 text-sm text-destructive" role="alert">
+          {loadError}
         </p>
-        <h2
-          className="mt-3 font-mono text-3xl tracking-[-0.04em] sm:text-4xl"
-          id="home-heading"
-        >
-          What do you want to learn?
-        </h2>
-        <p className="mt-3 text-lg text-muted-foreground">
-          Pick a question. We’ll build a two-sided podcast around it.
-        </p>
-
-        <form className="mt-8 border-y py-6 sm:py-8" onSubmit={handleCreate}>
-          <Label className="sr-only" htmlFor="podcast-topic">
-            Podcast topic
-          </Label>
-          <Input
-            aria-describedby={
-              request.status === "error" && request.field === "topic"
-                ? "topic-error"
-                : undefined
-            }
-            aria-invalid={request.status === "error" && request.field === "topic"}
-            className="h-14 rounded-md px-4 text-base md:text-lg"
-            id="podcast-topic"
-            maxLength={240}
-            name="topic"
-            placeholder="For example: SSR versus CSR for a growing SaaS product"
-            required
-          />
-          {request.status === "error" && request.field === "topic" ? (
-            <p className="mt-3 text-sm text-destructive" id="topic-error" role="alert">
-              {request.message}
-            </p>
-          ) : null}
-
-          <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <Label htmlFor="duration-minutes">Episode length</Label>
-              <div className="mt-2 flex items-center gap-2">
-                <Clock3 aria-hidden="true" className="size-4 text-muted-foreground" />
-                <Select
-                  name="durationMinutes"
-                  onValueChange={(value) => setDurationMinutes(value ?? "1")}
-                  value={durationMinutes}
-                >
-                  <SelectTrigger className="h-11 min-w-36" id="duration-minutes">
-                    <SelectValue>{`${durationMinutes} ${durationMinutes === "1" ? "minute" : "minutes"}`}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 minute</SelectItem>
-                    <SelectItem value="3">3 minutes</SelectItem>
-                    <SelectItem value="5">5 minutes</SelectItem>
-                    <SelectItem value="8">8 minutes</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                className="h-11 px-4"
-                disabled={request.status === "submitting"}
-                name="action"
-                type="submit"
-                value="now"
-              >
-                {request.status === "submitting" && !scheduleOpen ? (
-                  <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-                ) : null}
-                Create now
-              </Button>
-              <Button
-                aria-expanded={scheduleOpen}
-                className="h-11 px-4"
-                onClick={toggleSchedule}
-                type="button"
-                variant="outline"
-              >
-                Schedule later
-              </Button>
-            </div>
-          </div>
-
-          {scheduleOpen ? (
-            <div className="mt-6 flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-end">
-              <div className="max-w-sm flex-1">
-                <Label htmlFor="scheduled-for">Have it ready by</Label>
-                <Input
-                  aria-describedby={
-                    request.status === "error" && request.field === "schedule"
-                      ? "schedule-error"
-                      : undefined
-                  }
-                  aria-invalid={request.status === "error" && request.field === "schedule"}
-                  className="mt-2 h-11 px-3 text-base md:text-base"
-                  defaultValue={scheduleDefaults.value}
-                  id="scheduled-for"
-                  min={scheduleDefaults.min}
-                  name="scheduledFor"
-                  required
-                  type="datetime-local"
-                />
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Leave the topic blank to use your most recently saved interest.
-                </p>
-              </div>
-              <Button
-                className="h-11 px-4"
-                disabled={request.status === "submitting"}
-                name="action"
-                type="submit"
-                value="schedule"
-              >
-                {request.status === "submitting" ? (
-                  <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-                ) : null}
-                Schedule podcast
-              </Button>
-              {request.status === "error" && request.field === "schedule" ? (
-                <p className="text-sm text-destructive sm:pb-3" id="schedule-error" role="alert">
-                  {request.message}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          {actionError ? (
-            <p className="mt-4 text-sm text-destructive" role="alert">
-              {actionError}
-            </p>
-          ) : null}
-        </form>
-
-        {loadError ? (
-          <p className="mt-4 text-sm text-destructive" role="alert">
-            {loadError}
-          </p>
-        ) : null}
-      </section>
+      ) : null}
 
       <section className="mt-16" aria-labelledby="your-podcasts-heading">
         <h2

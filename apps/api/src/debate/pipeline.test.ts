@@ -2,9 +2,14 @@ import { describe, expect, test } from "bun:test";
 
 import { parseByteRange } from "../audio-range";
 import { getPodcastSchedule } from "../podcast-schedule";
+import { parseFishAudioEvent } from "./fish-audio";
 import { audioWordLimit } from "./pipeline";
 import { transcriptSchema } from "./schemas";
-import { toFishAudioText } from "./transcript-agent";
+import {
+  countTranscriptWords,
+  toFishAudioText,
+  transcriptWordTarget,
+} from "./transcript-agent";
 
 const transcript = transcriptSchema.parse({
   title: "A test debate",
@@ -24,6 +29,8 @@ describe("podcast delivery helpers", () => {
     expect(audioWordLimit(1)).toBe(150);
     expect(audioWordLimit(3)).toBe(450);
     expect(audioWordLimit(5)).toBe(750);
+    expect(transcriptWordTarget(10)).toBe(1_500);
+    expect(countTranscriptWords(transcript)).toBe(216);
   });
 
   test("caps the preview and includes both voices", () => {
@@ -33,6 +40,18 @@ describe("podcast delivery helpers", () => {
     expect(preview.text).toContain("<|speaker:0|>");
     expect(preview.text).toContain("<|speaker:1|>");
     expect(preview.text).toContain("[break]");
+  });
+
+  test("decodes Fish Audio streaming events", () => {
+    const audio = parseFishAudioEvent(
+      JSON.stringify({ audio_base64: Buffer.from("mp3").toString("base64") }),
+    );
+
+    expect(audio).toEqual(Buffer.from("mp3"));
+    expect(parseFishAudioEvent(JSON.stringify({ alignment: {} }))).toBeNull();
+    expect(() =>
+      parseFishAudioEvent(JSON.stringify({ status: 500, message: "failed" })),
+    ).toThrow("Fish Audio streaming error: failed");
   });
 
   test("parses browser byte ranges", () => {

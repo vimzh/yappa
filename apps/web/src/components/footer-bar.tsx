@@ -5,11 +5,11 @@ export function FooterBar() {
   return (
     <footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-5 border-t border-border py-8">
       <Link
-        aria-label="Yappa home"
+        aria-label="Yappa.ai home"
         className="font-mono text-sm font-medium tracking-[-0.02em]"
         href="/"
       >
-        Yappa
+        Yappa.ai
       </Link>
 
       <nav aria-label="Footer navigation" className="flex flex-wrap items-center gap-5 text-sm text-muted-foreground">
@@ -22,6 +22,9 @@ export function FooterBar() {
         <a className="hover:text-foreground" href="#philosophy">
           Philosophy
         </a>
+        <Link className="hover:text-foreground" href="/pricing">
+          Pricing
+        </Link>
       </nav>
     </footer>
   );
