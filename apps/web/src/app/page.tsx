@@ -150,8 +150,9 @@ export default async function Home({
             </h1>
 
             <p className="mt-8 max-w-2xl text-pretty text-xl leading-relaxed text-muted-foreground">
-              Two LLMs debate opposite sides of an idea, turning every topic into a
-              podcast. <span>Either way, you learn.</span>
+              Choose something you want to understand and the time you have available.
+              Yappa.ai creates a researched debate podcast that explores both sides
+              before you reach your destination.
             </p>
 
             <div className="mt-10 flex scroll-mt-32 flex-wrap gap-3" id="start">
