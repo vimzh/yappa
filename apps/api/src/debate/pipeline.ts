@@ -54,6 +54,16 @@ async function writeJson(path: string, value: unknown) {
   await Bun.write(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+async function recordFishRequests(
+  id: string,
+  requestTexts: string[],
+  model: string,
+) {
+  await Promise.all(
+    requestTexts.map((text) => recordFishUsage(id, text, model)),
+  );
+}
+
 async function readJson<T>(path: string): Promise<T | null> {
   const file = Bun.file(path);
   if (!(await file.exists())) return null;
@@ -93,15 +103,15 @@ function createReport(
   const finalOverall = Math.round(
     selected.review.overall * 0.75 + sourceVerification * 0.25,
   );
+  const qualityGatePasses =
+    selected.review.factualAccuracy >= 88 &&
+    selected.review.humanRhythm >= 82 &&
+    selected.review.ttsReadiness >= 85 &&
+    audioPreviewWords >= audioWordTarget &&
+    finalOverall >= 85;
 
   return {
-    approved:
-      selected.review.approved &&
-      selected.review.factualAccuracy >= 88 &&
-      selected.review.humanRhythm >= 82 &&
-      selected.review.ttsReadiness >= 85 &&
-      audioPreviewWords >= audioWordTarget &&
-      finalOverall >= 85,
+    approved: qualityGatePasses,
     transcriptIterations: artifacts.length,
     selectedIteration: selected.iteration,
     fullTranscriptWords: selected.wordCount,
@@ -119,6 +129,16 @@ function createReport(
       ttsReadiness: artifact.review.ttsReadiness,
     })),
   };
+}
+
+function reportPassesQuality(report: PodcastReport, audioWordTarget: number) {
+  return (
+    report.scores.factualAccuracy >= 88 &&
+    report.scores.humanRhythm >= 82 &&
+    report.scores.ttsReadiness >= 85 &&
+    report.audioPreviewWords >= audioWordTarget &&
+    report.scores.finalOverall >= 85
+  );
 }
 
 export async function runPodcastGeneration(options: {
@@ -179,22 +199,25 @@ export async function runPodcastGeneration(options: {
     : null;
   if (
     cachedTranscript &&
-    cachedReport?.approved &&
+    cachedReport &&
+    reportPassesQuality(cachedReport, audioWordLimit(options.durationMinutes)) &&
     cachedPreview &&
     cachedPreview.spokenWords >= audioWordLimit(options.durationMinutes)
   ) {
     const preview = cachedPreview;
+    const approvedReport = { ...cachedReport, approved: true };
     const audioPath = resolve(directory, "preview.mp3");
     await setStage(options.id, "synthesizing", 88);
     const fish = await synthesizeDebatePreview(preview.text, audioPath);
-    await recordFishUsage(options.id, preview.text, fish.model);
+    await recordFishRequests(options.id, fish.requestTexts, fish.model);
     await updatePodcast(options.id, {
       status: "ready",
       progress: 100,
       audioPath,
+      report: JSON.stringify(approvedReport),
       error: null,
     });
-    return cachedReport;
+    return approvedReport;
   }
 
   await setStage(options.id, "writing", 56);
@@ -262,7 +285,7 @@ export async function runPodcastGeneration(options: {
   await setStage(options.id, "synthesizing", 88);
   const audioPath = resolve(directory, "preview.mp3");
   const fish = await synthesizeDebatePreview(preview.text, audioPath);
-  await recordFishUsage(options.id, preview.text, fish.model);
+  await recordFishRequests(options.id, fish.requestTexts, fish.model);
 
   await updatePodcast(options.id, {
     status: "ready",

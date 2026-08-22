@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { parseByteRange } from "../audio-range";
 import { getPodcastSchedule } from "../podcast-schedule";
-import { parseFishAudioEvent } from "./fish-audio";
+import { parseFishAudioEvent, splitFishAudioText } from "./fish-audio";
 import { audioWordLimit } from "./pipeline";
 import { transcriptSchema } from "./schemas";
 import {
@@ -30,16 +30,26 @@ describe("podcast delivery helpers", () => {
     expect(audioWordLimit(3)).toBe(450);
     expect(audioWordLimit(5)).toBe(750);
     expect(transcriptWordTarget(10)).toBe(1_500);
+    expect(transcriptWordTarget(20)).toBe(3_000);
     expect(countTranscriptWords(transcript)).toBe(216);
   });
 
   test("caps the preview and includes both voices", () => {
     const preview = toFishAudioText(transcript, 90);
 
-    expect(preview.spokenWords).toBeLessThanOrEqual(90);
+    expect(preview.spokenWords).toBe(90);
     expect(preview.text).toContain("<|speaker:0|>");
     expect(preview.text).toContain("<|speaker:1|>");
     expect(preview.text).toContain("[break]");
+  });
+
+  test("splits long Fish requests only between speaker turns", () => {
+    const preview = toFishAudioText(transcript, 216);
+    const chunks = splitFishAudioText(preview.text, 40);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.join("")).toBe(preview.text);
+    expect(chunks.every((chunk) => chunk.includes("<|speaker:"))).toBe(true);
   });
 
   test("decodes Fish Audio streaming events", () => {

@@ -1,7 +1,9 @@
 // Starts one podcast job through the local API and follows it until completion.
-const topic = process.argv
-  .slice(2)
-  .filter((argument) => argument !== "--")
+const argumentsList = process.argv.slice(2).filter((argument) => argument !== "--");
+const durationIndex = argumentsList.indexOf("--duration");
+const durationMinutes = durationIndex >= 0 ? Number(argumentsList[durationIndex + 1]) : 1;
+const topic = argumentsList
+  .filter((_, index) => index !== durationIndex && index !== durationIndex + 1)
   .join(" ")
   .trim();
 
@@ -15,7 +17,7 @@ const apiUrl = process.env.API_URL ?? "http://localhost:3101";
 const created = await fetch(`${apiUrl}/podcasts`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ topic, maxIterations: 2 }),
+  body: JSON.stringify({ topic, durationMinutes, maxIterations: 2 }),
 });
 
 if (!created.ok) {

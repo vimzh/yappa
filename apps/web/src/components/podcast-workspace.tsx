@@ -722,6 +722,7 @@ export function PodcastWorkspace() {
                         <SelectItem value="5">5 minutes</SelectItem>
                         <SelectItem value="8">8 minutes</SelectItem>
                         <SelectItem value="10">10 minutes</SelectItem>
+                        <SelectItem value="20">20 minutes</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

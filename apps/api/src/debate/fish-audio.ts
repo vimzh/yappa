@@ -1,6 +1,8 @@
 const defaultVoiceA = "7ff4ca1837d745ea973471a8fba735e4";
 const defaultVoiceB = "77974fed34614080a505a797bb96357b";
 const fishStreamTimeoutMs = 10 * 60_000;
+// ponytail: 180 spoken words per request keeps long episodes below Fish's socket ceiling; tune after production timing data.
+const fishInputChunkWordLimit = 180;
 
 export function parseFishAudioEvent(data: string) {
   const event = JSON.parse(data) as {
@@ -33,20 +35,46 @@ async function assertVoiceAvailable(apiKey: string, id: string) {
   }
 }
 
-export async function synthesizeDebatePreview(text: string, outputPath: string) {
-  const apiKey = process.env.FISH_API_KEY;
-  if (!apiKey) {
-    throw new Error("FISH_API_KEY is not configured.");
+export function splitFishAudioText(
+  text: string,
+  maxWords = fishInputChunkWordLimit,
+) {
+  const segments = text.match(/<\|speaker:\d+\|>[\s\S]*?(?=<\|speaker:\d+\|>|$)/g) ?? [];
+  if (segments.length === 0) {
+    throw new Error("Fish Audio input is missing speaker turns.");
   }
 
-  const voiceIds = [
-    process.env.FISH_VOICE_A_ID ?? defaultVoiceA,
-    process.env.FISH_VOICE_B_ID ?? defaultVoiceB,
-  ];
-  await Promise.all(voiceIds.map((id) => assertVoiceAvailable(apiKey, id)));
+  const chunks: string[] = [];
+  let current = "";
+  let currentWords = 0;
 
-  const model = process.env.FISH_TTS_MODEL ?? "s2.1-pro-free";
+  for (const segment of segments) {
+    const segmentWords = segment
+      .replace(/<\|speaker:\d+\|>/g, "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean).length;
 
+    if (current && currentWords + segmentWords > maxWords) {
+      chunks.push(current);
+      current = "";
+      currentWords = 0;
+    }
+
+    current += segment;
+    currentWords += segmentWords;
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+async function synthesizeFishAudioChunkOnce(
+  text: string,
+  apiKey: string,
+  voiceIds: string[],
+  model: string,
+) {
   const response = await fetch("https://api.fish.audio/v1/tts/stream/with-timestamp", {
     method: "POST",
     signal: AbortSignal.timeout(fishStreamTimeoutMs),
@@ -124,6 +152,50 @@ export async function synthesizeDebatePreview(text: string, outputPath: string) 
     throw new Error("Fish Audio returned an unexpectedly small MP3.");
   }
 
+  return audio;
+}
+
+async function synthesizeFishAudioChunk(
+  text: string,
+  apiKey: string,
+  voiceIds: string[],
+  model: string,
+) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      return await synthesizeFishAudioChunkOnce(text, apiKey, voiceIds, model);
+    } catch (error) {
+      if (attempt === 2) throw error;
+      console.warn("Fish Audio chunk failed; retrying once", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      await Bun.sleep(1_000);
+    }
+  }
+
+  throw new Error("Fish Audio chunk synthesis failed.");
+}
+
+export async function synthesizeDebatePreview(text: string, outputPath: string) {
+  const apiKey = process.env.FISH_API_KEY;
+  if (!apiKey) {
+    throw new Error("FISH_API_KEY is not configured.");
+  }
+
+  const voiceIds = [
+    process.env.FISH_VOICE_A_ID ?? defaultVoiceA,
+    process.env.FISH_VOICE_B_ID ?? defaultVoiceB,
+  ];
+  await Promise.all(voiceIds.map((id) => assertVoiceAvailable(apiKey, id)));
+
+  const model = process.env.FISH_TTS_MODEL ?? "s2.1-pro-free";
+  const chunks = splitFishAudioText(text);
+  const audioChunks: Buffer[] = [];
+  for (const chunk of chunks) {
+    audioChunks.push(await synthesizeFishAudioChunk(chunk, apiKey, voiceIds, model));
+  }
+
+  const audio = Buffer.concat(audioChunks);
   await Bun.write(outputPath, audio);
-  return { audioBytes: audio.byteLength, model };
+  return { audioBytes: audio.byteLength, model, requestTexts: chunks };
 }

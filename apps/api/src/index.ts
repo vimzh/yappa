@@ -24,6 +24,7 @@ const createPodcastSchema = z.object({
     z.literal(5),
     z.literal(8),
     z.literal(10),
+    z.literal(20),
   ]).default(1),
   maxIterations: z.number().int().min(1).max(3).default(2),
   scheduledFor: z.string().datetime({ offset: true }).optional(),
@@ -319,7 +320,7 @@ export const app = new Hono<{ Variables: AppVariables }>()
       return context.json(
         {
           error: invalidDuration
-            ? "Episode length must be 1, 3, 5, 8, or 10 minutes."
+            ? "Episode length must be 1, 3, 5, 8, 10, or 20 minutes."
             : "Topic must be between 8 and 240 characters.",
         },
         400,

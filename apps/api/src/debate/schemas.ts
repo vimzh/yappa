@@ -77,7 +77,7 @@ export const transcriptTurnSchema = z.object({
 export const transcriptSchema = z.object({
   title: z.string(),
   summary: z.string(),
-  turns: z.array(transcriptTurnSchema).min(24).max(44),
+  turns: z.array(transcriptTurnSchema).min(24).max(72),
   conclusion: z.string(),
 });
 

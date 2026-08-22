@@ -17,9 +17,16 @@ export function transcriptWordTarget(durationMinutes: number) {
   return durationMinutes * wordsPerMinute;
 }
 
+function transcriptGenerationMinimum(durationMinutes: number) {
+  const targetWords = transcriptWordTarget(durationMinutes);
+  return targetWords + Math.max(100, Math.round(targetWords * 0.15));
+}
+
 function conversationGuide(durationMinutes: number) {
   const targetWords = transcriptWordTarget(durationMinutes);
-  return `Write 24-44 short turns and at least ${targetWords} spoken words, aiming for ${targetWords}-${Math.round(targetWords * 1.1)}. This minimum is mandatory; do not end the debate early. Use as many turns as needed while staying under 44. Each turn should be 1-3 sentences. The speakers must answer each other directly, challenge assumptions, concede strong points, and change pace naturally.
+  const generationMinimum = transcriptGenerationMinimum(durationMinutes);
+  const maxTurns = durationMinutes >= 20 ? 72 : durationMinutes >= 10 ? 56 : 44;
+  return `Write 24-${maxTurns} short turns and at least ${generationMinimum} spoken words, aiming for ${generationMinimum}-${Math.round(generationMinimum * 1.08)}. The requested audio minimum is ${targetWords} words, so this generation buffer is mandatory; do not end the debate early. Use as many turns as needed while staying under ${maxTurns}. Each turn should be 1-3 sentences. The speakers must answer each other directly, challenge assumptions, concede strong points, and change pace naturally.
 
 Always begin with two brief orientation turns. Maya naturally states today's topic, introduces herself by name, and says which position she is taking. Rowan then introduces himself by name and states the opposite position. Keep these introductions conversational, free of evidence claims, and under two sentences each; begin the actual disagreement immediately afterward.
 
@@ -45,11 +52,11 @@ async function createTranscript(
     schemaName: "debate_transcript",
     model: process.env.OPENAI_EDITOR_MODEL ?? "gpt-5.6-luna",
     reasoningEffort: "none",
-    maxOutputTokens: Math.max(3_500, durationMinutes * 450),
+    maxOutputTokens: Math.max(4_000, durationMinutes * 700),
     onUsage,
     instructions: `You are the senior editor of a two-person educational debate podcast.
 
-${speakerGuide}
+    ${speakerGuide}
 
 ${conversationGuide(durationMinutes)}`,
     input: `Proposition: ${topic}
@@ -78,7 +85,7 @@ async function reviseTranscript(
     schemaName: "revised_debate_transcript",
     model: process.env.OPENAI_EDITOR_MODEL ?? "gpt-5.6-luna",
     reasoningEffort: "none",
-    maxOutputTokens: Math.max(3_500, durationMinutes * 450),
+    maxOutputTokens: Math.max(4_000, durationMinutes * 700),
     onUsage,
     instructions: `You are revising a debate podcast after an exacting editorial review.
 
@@ -89,7 +96,7 @@ ${conversationGuide(durationMinutes)}
 Fix the review issues without flattening the voices or adding unsupported facts. Keep what already works.`,
     input: `Proposition: ${topic}
 
-Current transcript word count: ${countTranscriptWords(transcript)}. Required minimum: ${transcriptWordTarget(durationMinutes)} spoken words. If the current transcript is below that minimum, expand it with additional responsive exchanges and deeper explanation using only the supplied verified claims. Do not summarize or end until the minimum is reached.
+Current transcript word count: ${countTranscriptWords(transcript)}. Required generation minimum: ${transcriptGenerationMinimum(durationMinutes)} spoken words. The requested audio minimum is ${transcriptWordTarget(durationMinutes)} words. If the current transcript is below the generation minimum, expand it with additional responsive exchanges and deeper explanation using only the supplied verified claims. Do not summarize or end until the generation minimum is reached.
 
 Verified side A brief:
 ${JSON.stringify(sideA)}
@@ -124,6 +131,8 @@ async function reviewTranscript(
 
 Penalize a missing or bloated topic-and-speaker orientation, alternating speeches that do not respond to each other, excessive fillers, repeated cadences, unsupported factual claims, citation IDs that do not exist, and stage directions that would be spoken aloud. Reward a concise opening that identifies the topic, Maya's side, and Rowan's side, followed by concessions, follow-up questions, callbacks, clean listening structure, distinct voices, and sparse Fish Audio-ready delivery cues. approved requires overall >= 85, factualAccuracy >= 88, humanRhythm >= 82, and ttsReadiness >= 85.`,
     input: `Proposition: ${topic}
+
+Deterministic spoken-word count from the application: ${countTranscriptWords(transcript)}. Required minimum: ${transcriptWordTarget(durationMinutes)}. Treat this count as authoritative; do not estimate the length by eye from the JSON.
 
 Verified side A brief:
 ${JSON.stringify(sideA)}
@@ -211,22 +220,27 @@ export function toFishAudioText(
 
   for (const turn of transcript.turns) {
     const words = turn.text.trim().split(/\s+/).filter(Boolean);
-    if (spokenWords > 0 && spokenWords + words.length > maxSpokenWords) {
-      break;
-    }
+    const remainingWords = maxSpokenWords - spokenWords;
+    if (remainingWords <= 0) break;
+    const selectedWords = words.slice(0, remainingWords);
+    if (selectedWords.length === 0) break;
+    const isPartialTurn = selectedWords.length < words.length;
 
     const speaker = turn.speaker === "A" ? 0 : 1;
     const pause =
-      turn.pauseAfter === "short"
+      isPartialTurn
+        ? ""
+        : turn.pauseAfter === "short"
         ? " [break]"
         : turn.pauseAfter === "long"
           ? " [long-break]"
           : "";
 
     chunks.push(
-      `<|speaker:${speaker}|>[${turn.delivery}] ${turn.text.trim()}${pause}`,
+      `<|speaker:${speaker}|>[${turn.delivery}] ${selectedWords.join(" ")}${pause}`,
     );
-    spokenWords += words.length;
+    spokenWords += selectedWords.length;
+    if (isPartialTurn) break;
   }
 
   if (!chunks.some((chunk) => chunk.startsWith("<|speaker:0|>"))) {
