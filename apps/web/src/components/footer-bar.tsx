@@ -16,12 +16,12 @@ export function FooterBar() {
         <a className="hover:text-foreground" href="https://github.com">
           GitHub
         </a>
-        <a className="hover:text-foreground" href="#use-cases">
+        <Link className="hover:text-foreground" href="/#use-cases">
           Use cases
-        </a>
-        <a className="hover:text-foreground" href="#philosophy">
+        </Link>
+        <Link className="hover:text-foreground" href="/#philosophy">
           Philosophy
-        </a>
+        </Link>
         <Link className="hover:text-foreground" href="/pricing">
           Pricing
         </Link>

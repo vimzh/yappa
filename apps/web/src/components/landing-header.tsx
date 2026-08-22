@@ -99,12 +99,12 @@ export function LandingHeader() {
           <a className="flex min-h-11 items-center hover:text-foreground" href="https://github.com">
             GitHub
           </a>
-          <a className="flex min-h-11 items-center hover:text-foreground" href="#use-cases">
+          <Link className="flex min-h-11 items-center hover:text-foreground" href="/#use-cases">
             Use cases
-          </a>
-          <a className="flex min-h-11 items-center hover:text-foreground" href="#philosophy">
+          </Link>
+          <Link className="flex min-h-11 items-center hover:text-foreground" href="/#philosophy">
             Philosophy
-          </a>
+          </Link>
           <Link className="flex min-h-11 items-center hover:text-foreground" href="/pricing">
             Pricing
           </Link>

@@ -167,7 +167,7 @@ export default async function Home({
               <Button
                 className="min-h-11 px-5"
                 nativeButton={false}
-                render={<a href="#demos" />}
+                render={<Link href="/#demos" />}
                 size="lg"
                 variant="outline"
               >
