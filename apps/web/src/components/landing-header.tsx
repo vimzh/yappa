@@ -2,12 +2,14 @@
 
 // Sticky landing-page navigation with a scroll-aware separation rule.
 import { Button } from "@/components/ui/button";
+import { AuthDialog } from "@/components/auth-dialog";
 import { apiFetch } from "@/lib/api";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
 function AuthAction() {
   const [signedIn, setSignedIn] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -26,13 +28,32 @@ function AuthAction() {
   }, []);
 
   return (
-    <Button
-      className="min-h-11 px-3 sm:px-5"
-      nativeButton={false}
-      render={<Link href="/home" />}
-    >
-      {signedIn ? "Home" : "Login"}
-    </Button>
+    <>
+      {signedIn ? (
+        <Button
+          className="min-h-11 px-3 sm:px-5"
+          nativeButton={false}
+          render={<Link href="/home" />}
+        >
+          Home
+        </Button>
+      ) : (
+        <Button
+          aria-haspopup="dialog"
+          className="min-h-11 px-3 sm:px-5"
+          onClick={() => setAuthOpen(true)}
+        >
+          Login
+        </Button>
+      )}
+      {authOpen ? (
+        <AuthDialog
+          onOpenChange={setAuthOpen}
+          open={authOpen}
+          reason="required"
+        />
+      ) : null}
+    </>
   );
 }
 
