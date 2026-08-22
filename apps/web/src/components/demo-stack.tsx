@@ -23,7 +23,8 @@ export function DemoStack() {
   return (
     <section
       aria-labelledby="demo-heading"
-      className="relative py-12 before:absolute before:top-0 before:left-1/2 before:w-screen before:-translate-x-1/2 before:border-t before:border-border before:content-[''] sm:py-16"
+      className="relative scroll-mt-24 py-12 before:absolute before:top-0 before:left-1/2 before:w-screen before:-translate-x-1/2 before:border-t before:border-border before:content-[''] sm:py-16"
+      id="demos"
     >
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="font-mono text-xl tracking-[-0.03em]" id="demo-heading">
