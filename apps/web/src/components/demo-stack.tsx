@@ -16,6 +16,16 @@ const demos = [
     duration: "1 min",
     src: "/demos/ai-coding-assistants.mp3",
   },
+  {
+    title: "Should schools allow students to use generative AI for assignments?",
+    duration: "10 min",
+    src: "/demos/schools-generative-ai-10min.mp3",
+  },
+  {
+    title: "Can AI improve democracy without weakening public trust?",
+    duration: "20 min",
+    src: "/demos/ai-democracy-public-trust-20min.mp3",
+  },
 ];
 
 /** A compact stack of real, playable Yappa episode samples for the landing hero. */
@@ -30,7 +40,9 @@ export function DemoStack() {
         <h2 className="font-mono text-xl tracking-[-0.03em]" id="demo-heading">
           Hear a debate.
         </h2>
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">03 demos</span>
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {String(demos.length).padStart(2, "0")} demos
+        </span>
       </div>
 
       <div className="mt-6 grid gap-3 md:grid-cols-3">
