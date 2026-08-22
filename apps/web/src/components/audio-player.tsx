@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,24 @@ export function AudioPlayer({
   const [duration, setDuration] = useState(0);
   const [failed, setFailed] = useState(false);
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const syncDuration = () => {
+      setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    };
+
+    syncDuration();
+    audio.addEventListener("loadedmetadata", syncDuration);
+    audio.addEventListener("durationchange", syncDuration);
+
+    return () => {
+      audio.removeEventListener("loadedmetadata", syncDuration);
+      audio.removeEventListener("durationchange", syncDuration);
+    };
+  }, [src]);
 
   async function togglePlayback() {
     const audio = audioRef.current;
@@ -109,9 +127,6 @@ export function AudioPlayer({
       <audio
         crossOrigin="use-credentials"
         onLoadedMetadata={() => setFailed(false)}
-        onDurationChange={(event) =>
-          setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)
-        }
         onEnded={() => {
           setPlaying(false);
           setCurrentTime(0);
