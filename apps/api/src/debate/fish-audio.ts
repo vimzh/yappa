@@ -1,5 +1,5 @@
-const defaultVoiceA = "7ff4ca1837d745ea973471a8fba735e4";
-const defaultVoiceB = "77974fed34614080a505a797bb96357b";
+import { getDefaultVoiceIds, type DebateVoiceIds } from "./voice-catalog";
+
 const fishStreamTimeoutMs = 10 * 60_000;
 // ponytail: 180 spoken words per request keeps long episodes below Fish's socket ceiling; tune after production timing data.
 const fishInputChunkWordLimit = 180;
@@ -72,7 +72,7 @@ export function splitFishAudioText(
 async function synthesizeFishAudioChunkOnce(
   text: string,
   apiKey: string,
-  voiceIds: string[],
+  voiceIds: readonly string[],
   model: string,
 ) {
   const response = await fetch("https://api.fish.audio/v1/tts/stream/with-timestamp", {
@@ -158,7 +158,7 @@ async function synthesizeFishAudioChunkOnce(
 async function synthesizeFishAudioChunk(
   text: string,
   apiKey: string,
-  voiceIds: string[],
+  voiceIds: readonly string[],
   model: string,
 ) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -176,16 +176,16 @@ async function synthesizeFishAudioChunk(
   throw new Error("Fish Audio chunk synthesis failed.");
 }
 
-export async function synthesizeDebatePreview(text: string, outputPath: string) {
+export async function synthesizeDebatePreview(
+  text: string,
+  outputPath: string,
+  voiceIds: DebateVoiceIds = getDefaultVoiceIds(),
+) {
   const apiKey = process.env.FISH_API_KEY;
   if (!apiKey) {
     throw new Error("FISH_API_KEY is not configured.");
   }
 
-  const voiceIds = [
-    process.env.FISH_VOICE_A_ID ?? defaultVoiceA,
-    process.env.FISH_VOICE_B_ID ?? defaultVoiceB,
-  ];
   await Promise.all(voiceIds.map((id) => assertVoiceAvailable(apiKey, id)));
 
   const model = process.env.FISH_TTS_MODEL ?? "s2.1-pro-free";

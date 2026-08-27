@@ -127,6 +127,12 @@
     @apply font-sans antialiased;
     font-synthesis: none;
   }
+  button,
+  a,
+  input,
+  select {
+    touch-action: manipulation;
+  }
 }
 
 @keyframes yappa-shimmer {

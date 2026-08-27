@@ -70,7 +70,7 @@ export function LandingHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-40 -mx-5 w-[calc(100%+2.5rem)] bg-background after:absolute after:left-1/2 after:top-full after:w-screen after:-translate-x-1/2 after:border-b after:content-[''] sm:-mx-8 sm:w-[calc(100%+4rem)] ${
+      className={`sticky top-0 z-40 -mx-5 w-[calc(100%+2.5rem)] bg-background pt-[env(safe-area-inset-top)] after:absolute after:left-1/2 after:top-full after:w-screen after:-translate-x-1/2 after:border-b after:content-[''] sm:-mx-8 sm:w-[calc(100%+4rem)] ${
         scrolled ? "after:border-border" : "after:border-transparent"
       }`}
     >
@@ -105,9 +105,9 @@ export function LandingHeader() {
           <Link className="flex min-h-11 items-center hover:text-foreground" href="/#philosophy">
             Philosophy
           </Link>
-          <Link className="flex min-h-11 items-center hover:text-foreground" href="/pricing">
+          {/* <Link className="flex min-h-11 items-center hover:text-foreground" href="/pricing">
             Pricing
-          </Link>
+          </Link> */}
         </nav>
 
         <AuthAction />

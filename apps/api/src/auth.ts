@@ -131,6 +131,7 @@ export async function finishGoogleOAuth(context: Context) {
         email: profile.email,
         name: profile.name?.trim() || profile.email,
         picture: profile.picture ?? null,
+        freeGenerationsUsed: 0,
         createdAt: now,
         updatedAt: now,
       };

@@ -142,7 +142,49 @@ export function CostsDashboard() {
             </Card>
           </div>
 
-          <div className="mt-10 overflow-x-auto border-y [scrollbar-gutter:stable]">
+          <div className="mt-10 divide-y border-y sm:hidden">
+            {data.podcasts.map((podcast) => (
+              <article className="py-5" key={podcast.id}>
+                <Link
+                  className="font-medium underline decoration-border underline-offset-4"
+                  href={`/podcasts/${podcast.id}`}
+                >
+                  {podcast.title}
+                </Link>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {new Date(podcast.createdAt).toLocaleDateString("en", { dateStyle: "medium" })} · {podcast.status}
+                </p>
+                <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  <div>
+                    <dt className="text-xs text-muted-foreground">OpenAI</dt>
+                    <dd className="mt-1 font-mono tabular-nums">
+                      {podcast.cost.metered ? money.format(podcast.cost.openai.costUsd) : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Fish Audio</dt>
+                    <dd className="mt-1 font-mono tabular-nums">
+                      {podcast.cost.metered ? money.format(podcast.cost.fish.costUsd) : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Total</dt>
+                    <dd className="mt-1"><MeteredCost cost={podcast.cost} /></dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Usage</dt>
+                    <dd className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {podcast.cost.metered
+                        ? `${number.format(podcast.cost.openai.inputTokens + podcast.cost.openai.outputTokens)} tokens · ${podcast.cost.openai.webSearchCalls} searches · ${number.format(podcast.cost.fish.inputBytes)} bytes`
+                        : "Created before metering"}
+                    </dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-10 hidden overflow-x-auto border-y [scrollbar-gutter:stable] sm:block">
             <table className="min-w-[50rem] w-full text-sm">
               <thead className="border-b text-left text-muted-foreground">
                 <tr>

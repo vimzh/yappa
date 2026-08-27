@@ -68,6 +68,15 @@ type Podcast = {
   createdAt: string;
 };
 
+type GenerationQuota = {
+  limit: number;
+  used: number;
+  remaining: number;
+  allowedDurations: number[];
+};
+
+type CreatedPodcast = Podcast & { quota: GenerationQuota };
+
 type RequestState =
   | { status: "idle" }
   | { status: "submitting" }
@@ -349,7 +358,7 @@ function PodcastCard({
         <CardDescription>{podcast.topic}</CardDescription>
       </CardHeader>
       <CardContent className="border-t pt-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <p className="text-xs text-muted-foreground">Status</p>
             <p className="mt-1 font-medium">{getStatusLabel(podcast)}</p>
@@ -463,6 +472,8 @@ export function PodcastWorkspace() {
   const [request, setRequest] = useState<RequestState>({ status: "idle" });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [quota, setQuota] = useState<GenerationQuota | null>(null);
+  const [quotaError, setQuotaError] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState(0);
   const [durationMinutes, setDurationMinutes] = useState("1");
   const [composerOpen, setComposerOpen] = useState(false);
@@ -515,6 +526,31 @@ export function PodcastWorkspace() {
     return () => {
       mounted = false;
       window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadQuota() {
+      try {
+        const response = await apiFetch("/generation-quota");
+        const body = (await readApiJson(response)) as GenerationQuota | { error: string };
+        if (!response.ok || !("remaining" in body)) {
+          throw new Error("Generation allowance could not be loaded.");
+        }
+        if (mounted) {
+          setQuota(body);
+          setQuotaError(false);
+        }
+      } catch {
+        if (mounted) setQuotaError(true);
+      }
+    }
+
+    void loadQuota();
+    return () => {
+      mounted = false;
     };
   }, []);
 
@@ -572,9 +608,12 @@ export function PodcastWorkspace() {
           maxIterations: 2,
         }),
       });
-      const body = (await readApiJson(response)) as Podcast | { error: string };
+      const body = (await readApiJson(response)) as
+        | CreatedPodcast
+        | { error: string; quota?: GenerationQuota };
 
       if (!response.ok) {
+        if ("quota" in body && body.quota) setQuota(body.quota);
         throw new Error(
           "error" in body && typeof body.error === "string"
             ? body.error
@@ -582,7 +621,9 @@ export function PodcastWorkspace() {
         );
       }
 
-      setPodcasts((current) => [body as Podcast, ...current]);
+      const created = body as CreatedPodcast;
+      setPodcasts((current) => [created, ...current]);
+      setQuota(created.quota);
       setRequest({ status: "idle" });
       setComposerOpen(false);
       setScheduleOpen(false);
@@ -650,7 +691,16 @@ export function PodcastWorkspace() {
     <div className="mx-auto w-full max-w-5xl">
       <h1 className="sr-only">Yappa.ai home</h1>
 
-      <div className="mb-6 flex justify-end">
+      <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+        <p className="text-sm text-muted-foreground" id="generation-quota-summary" role="status">
+          {quota
+            ? quota.remaining === 0
+              ? "All 3 free generations used"
+              : `${quota.remaining} of ${quota.limit} free generations left`
+            : quotaError
+              ? "Your free limit will be checked when you create"
+              : "Checking free generations…"}
+        </p>
         <Dialog
           open={composerOpen}
           onOpenChange={(open) => {
@@ -663,7 +713,12 @@ export function PodcastWorkspace() {
         >
           <DialogTrigger
             render={
-              <Button className="h-11 gap-2 px-4" type="button">
+              <Button
+                aria-describedby="generation-quota-summary"
+                className="h-11 w-full gap-2 px-4 sm:w-auto"
+                disabled={quota?.remaining === 0}
+                type="button"
+              >
                 <Plus aria-hidden="true" />
                 New podcast
               </Button>
@@ -720,9 +775,6 @@ export function PodcastWorkspace() {
                         <SelectItem value="1">1 minute</SelectItem>
                         <SelectItem value="3">3 minutes</SelectItem>
                         <SelectItem value="5">5 minutes</SelectItem>
-                        <SelectItem value="8">8 minutes</SelectItem>
-                        <SelectItem value="10">10 minutes</SelectItem>
-                        <SelectItem value="20">20 minutes</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

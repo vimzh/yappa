@@ -6,6 +6,9 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   picture: text("picture"),
+  voiceAId: text("voice_a_id"),
+  voiceBId: text("voice_b_id"),
+  freeGenerationsUsed: integer("free_generations_used").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
@@ -45,6 +48,8 @@ export const podcasts = sqliteTable("podcasts", {
   status: text("status").notNull(),
   progress: integer("progress").notNull(),
   durationMinutes: integer("duration_minutes").notNull().default(1),
+  voiceAId: text("voice_a_id"),
+  voiceBId: text("voice_b_id"),
   transcriptIterations: integer("transcript_iterations").notNull(),
   qualityScore: integer("quality_score"),
   transcript: text("transcript"),

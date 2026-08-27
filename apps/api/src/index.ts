@@ -1,12 +1,13 @@
-import { db, interests, podcasts } from "@yappa/db";
-import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { db, interests, podcasts, users } from "@yappa/db";
+import { and, asc, desc, eq, inArray, lt, lte, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 
-import { generateLearningArticle } from "./article";
+import { answerArticleQuestion, generateLearningArticle } from "./article";
 import { parseByteRange } from "./audio-range";
 import { recordOpenAIUsage, summarizeCosts, toPodcastCost } from "./costs";
+import { generatePodcastTopicSuggestions } from "./interest-topics";
 import { removePodcastArtifacts, runPodcastGeneration } from "./debate/pipeline";
 import {
   podcastStatuses,
@@ -14,7 +15,19 @@ import {
   transcriptSchema,
 } from "./debate/schemas";
 import { getPodcastSchedule } from "./podcast-schedule";
+import {
+  freeGenerationLimit,
+  toGenerationQuota,
+} from "./generation-quota";
 import { finishGoogleOAuth, getAuthUser, signOut, startGoogleOAuth, type AuthUser } from "./auth";
+import {
+  isVoiceAId,
+  isVoiceBId,
+  resolveVoiceIds,
+  voiceAOptions,
+  voiceBOptions,
+  type DebateVoiceIds,
+} from "./debate/voice-catalog";
 
 const createPodcastSchema = z.object({
   topic: z.string().trim().min(8).max(240).optional(),
@@ -22,9 +35,6 @@ const createPodcastSchema = z.object({
     z.literal(1),
     z.literal(3),
     z.literal(5),
-    z.literal(8),
-    z.literal(10),
-    z.literal(20),
   ]).default(1),
   maxIterations: z.number().int().min(1).max(3).default(2),
   scheduledFor: z.string().datetime({ offset: true }).optional(),
@@ -32,6 +42,26 @@ const createPodcastSchema = z.object({
 
 const createInterestSchema = z.object({
   topic: z.string().trim().min(2).max(80),
+});
+
+const createInterestsSchema = z.object({
+  topics: z.array(z.string().trim().min(2).max(80)).min(1).max(20),
+});
+
+const voiceSettingsSchema = z.object({
+  voiceAId: z.string(),
+  voiceBId: z.string(),
+});
+
+const articleQuestionSchema = z.object({
+  question: z.string().trim().min(8).max(400),
+  passage: z.string().trim().min(20).max(2_000),
+});
+
+const articlePassagesSchema = z.object({
+  sections: z.array(
+    z.object({ paragraphs: z.array(z.object({ text: z.string() })) }),
+  ),
 });
 
 const activeJobs = new Set<string>();
@@ -97,6 +127,7 @@ function startPodcastJob(options: {
   topic: string;
   durationMinutes: number;
   maxIterations: number;
+  voiceIds: DebateVoiceIds;
 }) {
   activeJobs.add(options.id);
 
@@ -137,6 +168,7 @@ async function startScheduledPodcasts() {
         topic: podcast.topic,
         durationMinutes: podcast.durationMinutes,
         maxIterations: defaultTranscriptIterations,
+        voiceIds: resolveVoiceIds(podcast),
       });
     }
   }
@@ -203,6 +235,43 @@ export const app = new Hono<{ Variables: AppVariables }>()
     await signOut(context);
     return new Response(null, { status: 204 });
   })
+  .get("/settings/voices", (context) => {
+    const user = context.get("user");
+    const [voiceAId, voiceBId] = resolveVoiceIds(user);
+    return context.json({
+      voiceAId,
+      voiceBId,
+      options: { voiceA: voiceAOptions, voiceB: voiceBOptions },
+    });
+  })
+  .put("/settings/voices", async (context) => {
+    const user = context.get("user");
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "Send a JSON body with both voice choices." }, 400);
+    }
+
+    const parsed = voiceSettingsSchema.safeParse(body);
+    if (
+      !parsed.success ||
+      !isVoiceAId(parsed.data.voiceAId) ||
+      !isVoiceBId(parsed.data.voiceBId)
+    ) {
+      return context.json({ error: "Choose one available voice for each speaker." }, 400);
+    }
+
+    await db
+      .update(users)
+      .set({ ...parsed.data, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+
+    return context.json({
+      ...parsed.data,
+      options: { voiceA: voiceAOptions, voiceB: voiceBOptions },
+    });
+  })
   .get("/interests", async (context) => {
     const user = context.get("user");
     const rows = await db.select().from(interests).where(eq(interests.userId, user.id)).orderBy(asc(interests.createdAt));
@@ -251,6 +320,74 @@ export const app = new Hono<{ Variables: AppVariables }>()
       201,
     );
   })
+  .post("/interests/batch", async (context) => {
+    const user = context.get("user");
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "Send a JSON body with a list of interests." }, 400);
+    }
+
+    const parsed = createInterestsSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "Add between 1 and 20 interests, each between 2 and 80 characters." },
+        400,
+      );
+    }
+
+    const saved = await db
+      .select({ topic: interests.topic })
+      .from(interests)
+      .where(eq(interests.userId, user.id));
+    const existing = new Set(saved.map((interest) => interest.topic.toLocaleLowerCase()));
+    const unique = new Map<string, string>();
+    for (const topic of parsed.data.topics) {
+      const key = topic.toLocaleLowerCase();
+      if (!existing.has(key) && !unique.has(key)) unique.set(key, topic);
+    }
+
+    const now = new Date();
+    const rows = [...unique.values()].map((topic) => ({
+      id: crypto.randomUUID(),
+      userId: user.id,
+      topic,
+      createdAt: now,
+    }));
+    if (rows.length > 0) await db.insert(interests).values(rows);
+
+    return context.json(
+      rows.map((interest) => ({
+        ...interest,
+        createdAt: interest.createdAt.toISOString(),
+      })),
+      201,
+    );
+  })
+  .post("/interests/suggestions", async (context) => {
+    const user = context.get("user");
+    const saved = await db
+      .select({ topic: interests.topic })
+      .from(interests)
+      .where(eq(interests.userId, user.id))
+      .orderBy(asc(interests.createdAt));
+    if (saved.length === 0) {
+      return context.json({ error: "Add at least one interest before generating topics." }, 400);
+    }
+
+    try {
+      return context.json(
+        await generatePodcastTopicSuggestions(saved.map((interest) => interest.topic)),
+      );
+    } catch (error) {
+      console.error("Podcast topic generation failed", {
+        userId: user.id,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+      return context.json({ error: "Podcast topics could not be generated. Try again." }, 502);
+    }
+  })
   .delete("/interests/:id", async (context) => {
     const user = context.get("user");
     const deleted = await db
@@ -279,6 +416,9 @@ export const app = new Hono<{ Variables: AppVariables }>()
         cost: toPodcastCost(podcast),
       })),
     });
+  })
+  .get("/generation-quota", (context) => {
+    return context.json(toGenerationQuota(context.get("user").freeGenerationsUsed));
   })
   .delete("/podcasts/:id", async (context) => {
     const user = context.get("user");
@@ -320,7 +460,7 @@ export const app = new Hono<{ Variables: AppVariables }>()
       return context.json(
         {
           error: invalidDuration
-            ? "Episode length must be 1, 3, 5, 8, 10, or 20 minutes."
+            ? "Episode length must be 1, 3, or 5 minutes."
             : "Topic must be between 8 and 240 characters.",
         },
         400,
@@ -363,6 +503,7 @@ export const app = new Hono<{ Variables: AppVariables }>()
 
     const id = crypto.randomUUID();
     const now = new Date();
+    const voiceIds = resolveVoiceIds(user);
     const podcast = {
       id,
       userId: user.id,
@@ -371,6 +512,8 @@ export const app = new Hono<{ Variables: AppVariables }>()
       status: schedule.status,
       progress: schedule.progress,
       durationMinutes: parsed.data.durationMinutes,
+      voiceAId: voiceIds[0],
+      voiceBId: voiceIds[1],
       transcriptIterations: 0,
       qualityScore: null,
       transcript: null,
@@ -396,19 +539,48 @@ export const app = new Hono<{ Variables: AppVariables }>()
       updatedAt: now,
     };
 
-    await db.insert(podcasts).values(podcast);
+    const quota = db.transaction((transaction) => {
+      const consumed = transaction
+        .update(users)
+        .set({
+          freeGenerationsUsed: sql`${users.freeGenerationsUsed} + 1`,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(users.id, user.id),
+            lt(users.freeGenerationsUsed, freeGenerationLimit),
+          ),
+        )
+        .returning({ used: users.freeGenerationsUsed })
+        .get();
+      if (!consumed) return null;
+
+      transaction.insert(podcasts).values(podcast).run();
+      return toGenerationQuota(consumed.used);
+    });
+    if (!quota) {
+      return context.json(
+        {
+          error: "You have used all three free podcast generations.",
+          quota: toGenerationQuota(freeGenerationLimit),
+        },
+        403,
+      );
+    }
     if (schedule.shouldStart) {
       startPodcastJob({
         id,
         topic,
         durationMinutes: parsed.data.durationMinutes,
         maxIterations: parsed.data.maxIterations,
+        voiceIds,
       });
     } else {
       void startScheduledPodcasts();
     }
 
-    return context.json(toPodcastSummary(podcast), 202);
+    return context.json({ ...toPodcastSummary(podcast), quota }, 202);
   })
   .post("/podcasts/:id/retry", async (context) => {
     const user = context.get("user");
@@ -455,6 +627,7 @@ export const app = new Hono<{ Variables: AppVariables }>()
       topic: podcast.topic,
       durationMinutes: podcast.durationMinutes,
       maxIterations: defaultTranscriptIterations,
+      voiceIds: resolveVoiceIds(podcast),
     });
     return context.json(toPodcastSummary(retried), 202);
   })
@@ -563,6 +736,69 @@ export const app = new Hono<{ Variables: AppVariables }>()
       return context.json({ error: "Article generation failed. Try again." }, 502);
     } finally {
       activeArticleJobs.delete(id);
+    }
+  })
+  .post("/podcasts/:id/article/questions", async (context) => {
+    const user = context.get("user");
+    const id = context.req.param("id");
+    let body: unknown;
+    try {
+      body = await context.req.json();
+    } catch {
+      return context.json({ error: "Send a question about the selected passage." }, 400);
+    }
+
+    const parsed = articleQuestionSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "Question must be 8-400 characters and reference a selected passage." },
+        400,
+      );
+    }
+
+    const [podcast] = await db
+      .select()
+      .from(podcasts)
+      .where(and(eq(podcasts.id, id), eq(podcasts.userId, user.id)))
+      .limit(1);
+    if (!podcast) {
+      return context.json({ error: "Podcast not found." }, 404);
+    }
+    if (!podcast.article || !podcast.transcript || !podcast.sources) {
+      return context.json({ error: "Generate the verified article first." }, 409);
+    }
+
+    const article = articlePassagesSchema.safeParse(parseStoredJson(podcast.article));
+    const passageBelongsToArticle = article.success && article.data.sections.some(
+      (section) => section.paragraphs.some(
+        (paragraph) => paragraph.text === parsed.data.passage,
+      ),
+    );
+    if (!passageBelongsToArticle) {
+      return context.json({ error: "Select a passage from this article." }, 400);
+    }
+
+    const transcript = transcriptSchema.safeParse(parseStoredJson(podcast.transcript));
+    const sources = z.array(sourceSchema).safeParse(parseStoredJson(podcast.sources));
+    if (!transcript.success || !sources.success) {
+      return context.json({ error: "Podcast research is incomplete." }, 409);
+    }
+
+    try {
+      const answer = await answerArticleQuestion({
+        topic: podcast.topic,
+        ...parsed.data,
+        transcript: transcript.data,
+        sources: sources.data,
+        onUsage: (usage) => recordOpenAIUsage(id, usage),
+      });
+      return context.json(answer);
+    } catch (error) {
+      console.error("Article follow-up failed", {
+        id,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+      return context.json({ error: "The debate could not answer that question. Try again." }, 502);
     }
   })
   .get("/podcasts/:id", async (context) => {

@@ -3,7 +3,7 @@ import { DemoStack } from "@/components/demo-stack";
 import { FooterBar } from "@/components/footer-bar";
 import FloatingLines from "@/components/FloatingLines";
 import { LandingHeader } from "@/components/landing-header";
-import { PricingCards } from "@/components/pricing-section";
+// import { PricingCards } from "@/components/pricing-section";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
@@ -144,12 +144,12 @@ export default async function Home({
             />
           </div>
 
-          <div className="relative z-10 flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center py-20 text-center sm:py-24">
-            <h1 className="max-w-4xl text-balance font-mono text-5xl leading-[0.98] font-normal tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+          <div className="relative z-10 flex min-h-[calc(100svh-4rem)] w-full flex-col items-center justify-center px-5 py-20 text-center sm:px-8 sm:py-24">
+            <h1 className="w-full max-w-4xl text-balance font-mono text-5xl leading-[0.98] font-normal tracking-[-0.04em] sm:text-6xl lg:text-7xl">
               Learn like never before.
             </h1>
 
-            <p className="mt-8 max-w-2xl text-pretty text-xl leading-relaxed text-muted-foreground">
+            <p className="mt-8 w-full max-w-2xl text-pretty text-xl leading-relaxed text-muted-foreground">
               Choose something you want to understand and the time you have available.
               Yappa.ai creates a researched debate podcast that explores both sides
               before you reach your destination.
@@ -346,6 +346,7 @@ export default async function Home({
           </div>
         </section>
 
+        {/* Pricing is temporarily hidden while plans are being finalized.
         <section
           aria-labelledby="pricing-heading"
           className="relative scroll-mt-24 py-24 before:absolute before:top-0 before:left-1/2 before:w-screen before:-translate-x-1/2 before:border-t before:border-border before:content-[''] sm:py-32"
@@ -368,7 +369,7 @@ export default async function Home({
           <div className="mt-12">
             <PricingCards />
           </div>
-        </section>
+        </section> */}
 
         <section
           className="relative scroll-mt-24 py-24 before:absolute before:top-0 before:left-1/2 before:w-screen before:-translate-x-1/2 before:border-t before:border-border before:content-[''] sm:py-32"

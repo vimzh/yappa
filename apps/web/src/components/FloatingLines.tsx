@@ -312,7 +312,19 @@ export default function FloatingLines({
     const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
     camera.position.z = 1;
 
-    const renderer = new WebGLRenderer({ antialias: true, alpha: true });
+    const canvas = document.createElement('canvas');
+    const context =
+      canvas.getContext('webgl2', { alpha: true, antialias: true }) ??
+      canvas.getContext('webgl', { alpha: true, antialias: true });
+    if (!context) return;
+
+    let renderer: WebGLRenderer;
+    try {
+      renderer = new WebGLRenderer({ canvas, context, antialias: true, alpha: true });
+    } catch {
+      // The hero content remains usable when WebGL is unavailable or disabled.
+      return;
+    }
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.domElement.style.width = '100%';
@@ -466,7 +478,12 @@ export default function FloatingLines({
       renderer.render(scene, camera);
       raf = requestAnimationFrame(renderLoop);
     };
-    renderLoop();
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      renderer.render(scene, camera);
+    } else {
+      renderLoop();
+    }
 
     return () => {
       active = false;

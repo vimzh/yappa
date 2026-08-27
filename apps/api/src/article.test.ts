@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { finalizeArticle } from "./article";
+import { finalizeArticle, validateArticleFollowUp } from "./article";
 
 describe("learning article delivery", () => {
   test("checks references and derives stable reading metadata", () => {
@@ -43,5 +43,31 @@ describe("learning article delivery", () => {
         5,
       ),
     ).toThrow("unknown source 6");
+  });
+
+  test("rejects ungrounded article follow-ups", () => {
+    const answer = {
+      sideA: { response: "The case for it.", sourceIndexes: [1] },
+      sideB: { response: "The case against it.", sourceIndexes: [2] },
+      takeaway: "The disagreement depends on the trade-off.",
+    };
+
+    expect(validateArticleFollowUp(answer, 2)).toEqual(answer);
+    expect(() =>
+      validateArticleFollowUp(
+        { ...answer, sideB: { ...answer.sideB, sourceIndexes: [3] } },
+        2,
+      ),
+    ).toThrow("unknown source 3");
+    expect(() =>
+      validateArticleFollowUp(
+        {
+          ...answer,
+          sideA: { ...answer.sideA, sourceIndexes: [] },
+          sideB: { ...answer.sideB, sourceIndexes: [] },
+        },
+        2,
+      ),
+    ).toThrow("did not cite a verified source");
   });
 });

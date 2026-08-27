@@ -1,8 +1,15 @@
-import { FooterBar } from "@/components/footer-bar";
-import { LandingHeader } from "@/components/landing-header";
-import { PricingCards } from "@/components/pricing-section";
+import { notFound } from "next/navigation";
+
+// import { FooterBar } from "@/components/footer-bar";
+// import { LandingHeader } from "@/components/landing-header";
+// import { PricingCards } from "@/components/pricing-section";
 
 export default function PricingPage() {
+  notFound();
+}
+
+/* Pricing is temporarily hidden while plans are being finalized.
+function PricingPageContent() {
   return (
     <div className="flex min-h-svh flex-col px-5 sm:px-8">
       <LandingHeader />
@@ -32,3 +39,4 @@ export default function PricingPage() {
     </div>
   );
 }
+*/

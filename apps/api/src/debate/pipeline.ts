@@ -21,6 +21,7 @@ import {
   transcriptWordTarget,
 } from "./transcript-agent";
 import { verifySide } from "./verification-agent";
+import type { DebateVoiceIds } from "./voice-catalog";
 
 const artifactRoot = resolve(import.meta.dir, "../../../../data/podcasts");
 
@@ -146,6 +147,7 @@ export async function runPodcastGeneration(options: {
   topic: string;
   durationMinutes: number;
   maxIterations: number;
+  voiceIds: DebateVoiceIds;
 }) {
   assertRequiredCredentials();
 
@@ -208,7 +210,11 @@ export async function runPodcastGeneration(options: {
     const approvedReport = { ...cachedReport, approved: true };
     const audioPath = resolve(directory, "preview.mp3");
     await setStage(options.id, "synthesizing", 88);
-    const fish = await synthesizeDebatePreview(preview.text, audioPath);
+    const fish = await synthesizeDebatePreview(
+      preview.text,
+      audioPath,
+      options.voiceIds,
+    );
     await recordFishRequests(options.id, fish.requestTexts, fish.model);
     await updatePodcast(options.id, {
       status: "ready",
@@ -284,7 +290,11 @@ export async function runPodcastGeneration(options: {
 
   await setStage(options.id, "synthesizing", 88);
   const audioPath = resolve(directory, "preview.mp3");
-  const fish = await synthesizeDebatePreview(preview.text, audioPath);
+  const fish = await synthesizeDebatePreview(
+    preview.text,
+    audioPath,
+    options.voiceIds,
+  );
   await recordFishRequests(options.id, fish.requestTexts, fish.model);
 
   await updatePodcast(options.id, {

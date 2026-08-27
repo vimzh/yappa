@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ArrowLeft, FileText, LoaderCircle, Trash2 } from "lucide-react";
+import { type FormEvent, useEffect, useState } from "react";
+import { ArrowLeft, FileText, LoaderCircle, MessageCircleQuestion, Trash2 } from "lucide-react";
 
 import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,12 @@ type Article = {
   generatedAt: string;
   wordCount: number;
   readingMinutes: number;
+};
+
+type ArticleFollowUp = {
+  sideA: { response: string; sourceIndexes: number[] };
+  sideB: { response: string; sourceIndexes: number[] };
+  takeaway: string;
 };
 
 type Transcript = {
@@ -85,7 +91,151 @@ function readError(body: unknown, fallback: string) {
   return fallback;
 }
 
-function ArticleView({ article, sources }: { article: Article; sources: Source[] }) {
+function FollowUpCitations({
+  sourceIndexes,
+  sources,
+}: {
+  sourceIndexes: number[];
+  sources: Source[];
+}) {
+  return (
+    <p className="mt-3 font-mono text-xs text-muted-foreground">
+      Sources{" "}
+      {sourceIndexes.map((sourceIndex, index) => {
+        const source = sources[sourceIndex - 1];
+        if (!source) return null;
+        return (
+          <span key={sourceIndex}>
+            {index > 0 ? ", " : null}
+            <a
+              className="underline decoration-border underline-offset-2 hover:decoration-foreground"
+              href={source.url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              [{sourceIndex}]
+            </a>
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
+function ArticleQuestion({
+  passage,
+  podcastId,
+  sources,
+}: {
+  passage: string;
+  podcastId: string;
+  sources: Source[];
+}) {
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<ArticleFollowUp | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function submitQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setAnswer(null);
+    setError(null);
+
+    try {
+      const response = await apiFetch(`/podcasts/${podcastId}/article/questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passage, question }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(readError(body, "The debate could not answer that question."));
+      }
+      setAnswer(body as ArticleFollowUp);
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "The debate could not answer that question.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mt-5 border-y border-border bg-muted/30 px-4 py-5 sm:px-5">
+      <form onSubmit={submitQuestion}>
+        <label className="font-mono text-sm" htmlFor="article-question">
+          Ask both sides about this point
+        </label>
+        <textarea
+          className="mt-3 min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          disabled={loading}
+          id="article-question"
+          maxLength={400}
+          minLength={8}
+          onChange={(event) => setQuestion(event.target.value)}
+          placeholder="What assumption is each side making here?"
+          required
+          value={question}
+        />
+        <div className="mt-3 flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            Answers use this episode’s verified transcript and sources.
+          </p>
+          <Button className="h-11 shrink-0" disabled={loading} type="submit">
+            {loading ? (
+              <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+            ) : (
+              <MessageCircleQuestion aria-hidden="true" className="size-4" />
+            )}
+            {loading ? "Asking…" : "Ask the debate"}
+          </Button>
+        </div>
+      </form>
+
+      {error ? (
+        <p className="mt-4 text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {answer ? (
+        <div aria-live="polite" className="mt-7 border-t border-border pt-6">
+          <div className="grid gap-7 sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-border">
+            <div className="sm:pr-6">
+              <p className="font-mono text-xs text-muted-foreground">Maya’s view</p>
+              <p className="mt-3 leading-relaxed">{answer.sideA.response}</p>
+              <FollowUpCitations sourceIndexes={answer.sideA.sourceIndexes} sources={sources} />
+            </div>
+            <div className="border-t border-border pt-6 sm:border-t-0 sm:pl-6 sm:pt-0">
+              <p className="font-mono text-xs text-muted-foreground">Rowan’s view</p>
+              <p className="mt-3 leading-relaxed">{answer.sideB.response}</p>
+              <FollowUpCitations sourceIndexes={answer.sideB.sourceIndexes} sources={sources} />
+            </div>
+          </div>
+          <div className="mt-6 border-t border-border pt-5">
+            <p className="font-mono text-xs text-muted-foreground">Where they disagree</p>
+            <p className="mt-2 leading-relaxed">{answer.takeaway}</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ArticleView({
+  article,
+  podcastId,
+  sources,
+}: {
+  article: Article;
+  podcastId: string;
+  sources: Source[];
+}) {
+  const [selectedPassage, setSelectedPassage] = useState<string | null>(null);
   const citedIndexes = Array.from(
     new Set(
       article.sections.flatMap((section) =>
@@ -116,30 +266,49 @@ function ArticleView({ article, sources }: { article: Article; sources: Source[]
 
       <div className="mt-12 grid gap-14 lg:grid-cols-[minmax(0,65ch)_18rem] lg:items-start lg:justify-between">
         <div className="min-w-0">
-          {article.sections.map((section) => (
+          {article.sections.map((section, sectionIndex) => (
             <section className="mt-12 first:mt-0" key={section.heading}>
               <h3 className="text-balance font-mono text-2xl tracking-[-0.035em]">
                 {section.heading}
               </h3>
               <div className="mt-5 space-y-6 text-pretty text-lg leading-[1.72]">
                 {section.paragraphs.map((paragraph, paragraphIndex) => (
-                  <p key={`${section.heading}-${paragraphIndex}`}>
-                    {paragraph.text}
-                    {paragraph.sourceIndexes.length > 0 ? (
-                      <sup className="ml-1 whitespace-nowrap font-mono text-[0.65em] leading-none">
-                        {paragraph.sourceIndexes.map((sourceIndex) => (
-                          <a
-                            aria-label={`Reference ${sourceIndex}`}
-                            className="ml-1 underline decoration-border underline-offset-2 hover:decoration-foreground"
-                            href={`#reference-${sourceIndex}`}
-                            key={sourceIndex}
-                          >
-                            [{sourceIndex}]
-                          </a>
-                        ))}
-                      </sup>
-                    ) : null}
-                  </p>
+                  <div key={`${section.heading}-${paragraphIndex}`}>
+                    <p>
+                      {paragraph.text}
+                      {paragraph.sourceIndexes.length > 0 ? (
+                        <sup className="ml-1 whitespace-nowrap font-mono text-[0.65em] leading-none">
+                          {paragraph.sourceIndexes.map((sourceIndex) => (
+                            <a
+                              aria-label={`Reference ${sourceIndex}`}
+                              className="ml-1 underline decoration-border underline-offset-2 hover:decoration-foreground"
+                              href={`#reference-${sourceIndex}`}
+                              key={sourceIndex}
+                            >
+                              [{sourceIndex}]
+                            </a>
+                          ))}
+                        </sup>
+                      ) : null}
+                    </p>
+                    {selectedPassage === `${sectionIndex}-${paragraphIndex}` ? (
+                      <ArticleQuestion
+                        passage={paragraph.text}
+                        podcastId={podcastId}
+                        sources={sources}
+                      />
+                    ) : (
+                      <Button
+                        className="mt-3 -ml-3 h-11 px-3 text-muted-foreground hover:text-foreground"
+                        onClick={() => setSelectedPassage(`${sectionIndex}-${paragraphIndex}`)}
+                        type="button"
+                        variant="ghost"
+                      >
+                        <MessageCircleQuestion aria-hidden="true" className="size-4" />
+                        Ask both sides
+                      </Button>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>
@@ -467,7 +636,7 @@ export function PodcastDetail({ id }: { id: string }) {
       ) : null}
 
       {podcast.article ? (
-        <ArticleView article={podcast.article} sources={sources} />
+        <ArticleView article={podcast.article} podcastId={podcast.id} sources={sources} />
       ) : (
         <ArticlePrompt
           error={generationError}
