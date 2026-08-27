@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { parseByteRange } from "../audio-range";
 import { getPodcastSchedule } from "../podcast-schedule";
 import { parseFishAudioEvent, splitFishAudioText } from "./fish-audio";
-import { audioWordLimit } from "./pipeline";
+import { audioWordLimit, formatPodcastPreferences } from "./pipeline";
 import { transcriptSchema } from "./schemas";
 import {
   countTranscriptWords,
@@ -32,6 +32,15 @@ describe("podcast delivery helpers", () => {
     expect(transcriptWordTarget(10)).toBe(1_500);
     expect(transcriptWordTarget(20)).toBe(3_000);
     expect(countTranscriptWords(transcript)).toBe(216);
+  });
+
+  test("formats optional listener preferences for generation", () => {
+    expect(formatPodcastPreferences("Use examples", "Skip jargon")).toContain(
+      "Include: Use examples\nAvoid: Skip jargon",
+    );
+    expect(formatPodcastPreferences(null, null)).toBe(
+      "No additional listener preferences.",
+    );
   });
 
   test("caps the preview and includes both voices", () => {

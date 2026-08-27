@@ -45,6 +45,7 @@ async function createTranscript(
   sideA: VerificationBrief,
   sideB: VerificationBrief,
   durationMinutes: number,
+  preferences: string,
   onUsage?: (usage: OpenAIUsage) => Promise<void> | void,
 ) {
   return runStructured({
@@ -60,6 +61,8 @@ async function createTranscript(
 
 ${conversationGuide(durationMinutes)}`,
     input: `Proposition: ${topic}
+
+${preferences}
 
 Verified side A brief:
 ${JSON.stringify(sideA)}
@@ -78,6 +81,7 @@ async function reviseTranscript(
   transcript: DebateTranscript,
   review: TranscriptReview,
   durationMinutes: number,
+  preferences: string,
   onUsage?: (usage: OpenAIUsage) => Promise<void> | void,
 ) {
   return runStructured({
@@ -95,6 +99,8 @@ ${conversationGuide(durationMinutes)}
 
 Fix the review issues without flattening the voices or adding unsupported facts. Keep what already works.`,
     input: `Proposition: ${topic}
+
+${preferences}
 
 Current transcript word count: ${countTranscriptWords(transcript)}. Required generation minimum: ${transcriptGenerationMinimum(durationMinutes)} spoken words. The requested audio minimum is ${transcriptWordTarget(durationMinutes)} words. If the current transcript is below the generation minimum, expand it with additional responsive exchanges and deeper explanation using only the supplied verified claims. Do not summarize or end until the generation minimum is reached.
 
@@ -151,6 +157,7 @@ export async function iterateTranscript(options: {
   sideB: VerificationBrief;
   durationMinutes: number;
   maxIterations: number;
+  preferences: string;
   onUsage?: (usage: OpenAIUsage) => Promise<void> | void;
   onIteration?: (artifact: TranscriptIteration) => Promise<void>;
 }) {
@@ -161,6 +168,7 @@ export async function iterateTranscript(options: {
     options.sideA,
     options.sideB,
     options.durationMinutes,
+    options.preferences,
     options.onUsage,
   );
   let review: TranscriptReview | undefined;
@@ -174,6 +182,7 @@ export async function iterateTranscript(options: {
         transcript,
         review,
         options.durationMinutes,
+        options.preferences,
         options.onUsage,
       );
     }

@@ -1,6 +1,6 @@
 "use client";
 
-// Loads and saves the two Fish Audio voices used for new debate podcasts.
+// Loads and saves the voices and editorial guidance used for new podcasts.
 import { useEffect, useState, type FormEvent } from "react";
 import { LoaderCircle, Save } from "lucide-react";
 
@@ -13,6 +13,8 @@ type VoiceOption = { id: string; name: string };
 type VoiceSettingsResponse = {
   voiceAId: string;
   voiceBId: string;
+  podcastInclude: string;
+  podcastAvoid: string;
   options: { voiceA: VoiceOption[]; voiceB: VoiceOption[] };
 };
 
@@ -72,12 +74,12 @@ export function VoiceSettings() {
         const response = await apiFetch("/settings/voices");
         const body = (await readApiJson(response)) as VoiceSettingsResponse | { error: string };
         if (!response.ok || !("options" in body)) {
-          throw new Error("error" in body ? body.error : "Voice settings could not be loaded.");
+          throw new Error("error" in body ? body.error : "Settings could not be loaded.");
         }
         if (active) setSettings(body);
       } catch (caught) {
         if (active) {
-          setError(caught instanceof Error ? caught.message : "Voice settings could not be loaded.");
+          setError(caught instanceof Error ? caught.message : "Settings could not be loaded.");
         }
       } finally {
         if (active) setLoading(false);
@@ -92,6 +94,12 @@ export function VoiceSettings() {
 
   function chooseVoice(key: "voiceAId" | "voiceBId", id: string) {
     setSettings((current) => current && { ...current, [key]: id });
+    setMessage(null);
+    setError(null);
+  }
+
+  function updatePreference(key: "podcastInclude" | "podcastAvoid", value: string) {
+    setSettings((current) => current && { ...current, [key]: value });
     setMessage(null);
     setError(null);
   }
@@ -111,16 +119,18 @@ export function VoiceSettings() {
         body: JSON.stringify({
           voiceAId: settings.voiceAId,
           voiceBId: settings.voiceBId,
+          podcastInclude: settings.podcastInclude,
+          podcastAvoid: settings.podcastAvoid,
         }),
       });
       const body = (await readApiJson(response)) as VoiceSettingsResponse | { error: string };
       if (!response.ok || !("options" in body)) {
-        throw new Error("error" in body ? body.error : "Voice settings could not be saved.");
+        throw new Error("error" in body ? body.error : "Settings could not be saved.");
       }
       setSettings(body);
-      setMessage("Voice settings saved. New podcasts will use this pair.");
+      setMessage("Preferences saved. New podcasts will use these choices.");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Voice settings could not be saved.");
+      setError(caught instanceof Error ? caught.message : "Settings could not be saved.");
     } finally {
       setSaving(false);
     }
@@ -134,16 +144,28 @@ export function VoiceSettings() {
         </p>
         <h1 className="mt-3 font-mono text-3xl tracking-[-0.04em] sm:text-4xl">Settings</h1>
         <p className="mt-3 text-lg text-muted-foreground">
-          Choose the two Fish Audio voices used in new debate podcasts.
+          Choose the voices, coverage, and tone used in new debate podcasts.
         </p>
       </header>
 
       {loading ? (
         <p className="mt-12 text-sm text-muted-foreground" role="status">
-          Loading voice settings…
+          Loading settings…
         </p>
       ) : settings ? (
-        <form className="mt-12" onSubmit={saveSettings}>
+        <form
+          className="mt-12"
+          onKeyDown={(event) => {
+            if (
+              event.target instanceof HTMLTextAreaElement &&
+              (event.metaKey || event.ctrlKey) &&
+              event.key === "Enter"
+            ) {
+              event.currentTarget.requestSubmit();
+            }
+          }}
+          onSubmit={saveSettings}
+        >
           <div className="grid gap-10 lg:grid-cols-2 lg:gap-12">
             <VoiceGroup
               description="Maya presents the first side of each debate."
@@ -163,6 +185,45 @@ export function VoiceSettings() {
             />
           </div>
 
+          <fieldset className="mt-12 border-t pt-10">
+            <legend className="font-mono text-xl tracking-[-0.03em]">Episode guidance</legend>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              Add optional guidance for every new podcast. These choices do not replace source verification.
+            </p>
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <div>
+                <label className="font-medium" htmlFor="podcast-include">What to include</label>
+                <p className="mt-1 text-sm text-muted-foreground" id="podcast-include-hint">
+                  For example: practical examples, history, and clear definitions.
+                </p>
+                <textarea
+                  aria-describedby="podcast-include-hint"
+                  className="mt-3 min-h-32 w-full resize-y rounded-lg border border-input bg-background px-3 py-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  id="podcast-include"
+                  maxLength={1000}
+                  name="podcastInclude"
+                  onChange={(event) => updatePreference("podcastInclude", event.target.value)}
+                  value={settings.podcastInclude}
+                />
+              </div>
+              <div>
+                <label className="font-medium" htmlFor="podcast-avoid">What to avoid</label>
+                <p className="mt-1 text-sm text-muted-foreground" id="podcast-avoid-hint">
+                  For example: dense jargon, graphic detail, or partisan framing.
+                </p>
+                <textarea
+                  aria-describedby="podcast-avoid-hint"
+                  className="mt-3 min-h-32 w-full resize-y rounded-lg border border-input bg-background px-3 py-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  id="podcast-avoid"
+                  maxLength={1000}
+                  name="podcastAvoid"
+                  onChange={(event) => updatePreference("podcastAvoid", event.target.value)}
+                  value={settings.podcastAvoid}
+                />
+              </div>
+            </div>
+          </fieldset>
+
           <div className="mt-10 flex flex-wrap items-center gap-4 border-t pt-6">
             <Button className="h-11 px-4" disabled={saving} type="submit">
               {saving ? (
@@ -170,7 +231,7 @@ export function VoiceSettings() {
               ) : (
                 <Save aria-hidden="true" />
               )}
-              Save voices
+              Save preferences
             </Button>
             {message ? (
               <p className="text-sm text-muted-foreground" role="status">{message}</p>

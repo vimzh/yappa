@@ -51,6 +51,8 @@ const createInterestsSchema = z.object({
 const voiceSettingsSchema = z.object({
   voiceAId: z.string(),
   voiceBId: z.string(),
+  podcastInclude: z.string().trim().max(1_000).default(""),
+  podcastAvoid: z.string().trim().max(1_000).default(""),
 });
 
 const articleQuestionSchema = z.object({
@@ -128,6 +130,8 @@ function startPodcastJob(options: {
   durationMinutes: number;
   maxIterations: number;
   voiceIds: DebateVoiceIds;
+  include: string | null;
+  avoid: string | null;
 }) {
   activeJobs.add(options.id);
 
@@ -169,6 +173,8 @@ async function startScheduledPodcasts() {
         durationMinutes: podcast.durationMinutes,
         maxIterations: defaultTranscriptIterations,
         voiceIds: resolveVoiceIds(podcast),
+        include: podcast.podcastInclude,
+        avoid: podcast.podcastAvoid,
       });
     }
   }
@@ -241,6 +247,8 @@ export const app = new Hono<{ Variables: AppVariables }>()
     return context.json({
       voiceAId,
       voiceBId,
+      podcastInclude: user.podcastInclude ?? "",
+      podcastAvoid: user.podcastAvoid ?? "",
       options: { voiceA: voiceAOptions, voiceB: voiceBOptions },
     });
   })
@@ -250,7 +258,7 @@ export const app = new Hono<{ Variables: AppVariables }>()
     try {
       body = await context.req.json();
     } catch {
-      return context.json({ error: "Send a JSON body with both voice choices." }, 400);
+      return context.json({ error: "Send a JSON body with your podcast preferences." }, 400);
     }
 
     const parsed = voiceSettingsSchema.safeParse(body);
@@ -264,7 +272,13 @@ export const app = new Hono<{ Variables: AppVariables }>()
 
     await db
       .update(users)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set({
+        voiceAId: parsed.data.voiceAId,
+        voiceBId: parsed.data.voiceBId,
+        podcastInclude: parsed.data.podcastInclude || null,
+        podcastAvoid: parsed.data.podcastAvoid || null,
+        updatedAt: new Date(),
+      })
       .where(eq(users.id, user.id));
 
     return context.json({
@@ -514,6 +528,8 @@ export const app = new Hono<{ Variables: AppVariables }>()
       durationMinutes: parsed.data.durationMinutes,
       voiceAId: voiceIds[0],
       voiceBId: voiceIds[1],
+      podcastInclude: user.podcastInclude,
+      podcastAvoid: user.podcastAvoid,
       transcriptIterations: 0,
       qualityScore: null,
       transcript: null,
@@ -575,6 +591,8 @@ export const app = new Hono<{ Variables: AppVariables }>()
         durationMinutes: parsed.data.durationMinutes,
         maxIterations: parsed.data.maxIterations,
         voiceIds,
+        include: user.podcastInclude,
+        avoid: user.podcastAvoid,
       });
     } else {
       void startScheduledPodcasts();
@@ -628,6 +646,8 @@ export const app = new Hono<{ Variables: AppVariables }>()
       durationMinutes: podcast.durationMinutes,
       maxIterations: defaultTranscriptIterations,
       voiceIds: resolveVoiceIds(podcast),
+      include: podcast.podcastInclude,
+      avoid: podcast.podcastAvoid,
     });
     return context.json(toPodcastSummary(retried), 202);
   })
