@@ -17,31 +17,36 @@
 
 ## Why Yappa
 
-Learning from one explanation is fast, but it can hide assumptions and make a confident answer feel complete. A good debate makes the disagreement visible. It forces claims to meet counterarguments, shows where evidence is strong or uncertain, and gives the learner room to decide.
+Most educational content is one-directional: a learner receives an explanation, remembers the conclusion, and rarely sees which assumptions produced it. That works for simple facts. It is much weaker for questions where evidence conflicts, values compete, or every answer carries a trade-off.
 
-Yappa brings that experience to the time people already have. Choose a question and a 1, 3, or 5-minute episode length, then listen while commuting, exercising, or working.
+A debate makes the structure of a difficult question visible. One side must make a clear case, the other must test it, and both have to respond to the strongest version of the opposing argument. The learner is no longer asked to accept a polished answer. They can compare evidence, notice concessions, identify the real point of disagreement, and form a view of their own.
+
+Yappa turns that learning pattern into something people can use during the time they already have. Instead of opening ten tabs or listening to a generic hour-long show, a learner chooses the exact question and a 1, 3, or 5-minute episode length. The result is a focused conversation designed for a commute, a workout, or a short break.
 
 ## What Yappa does
 
-- **Builds both cases independently.** Two research agents use web search to make the strongest defensible case for and against the proposition.
-- **Checks claims before writing.** Separate verifier agents audit sources, correct overstatements, and reject unsupported material.
-- **Edits to a measurable quality bar.** Yappa reviews and revises the debate for factual accuracy, natural dialogue, text-to-speech readiness, and the requested duration.
-- **Turns the result into audio.** Fish Audio voices the two speakers as a playable MP3, while Yappa retains the transcript and source list.
-- **Keeps learning after the episode.** A verified debate can become a reading article, and learners can select a passage and ask a follow-up grounded in the episode's transcript and sources.
+Yappa handles the full path from a rough question to a finished learning experience:
 
-<p align="center">
-  <img src="apps/web/public/images/how-it-works.png" alt="Yappa product flow from choosing a topic through opposing research, verification, debate writing, and audio playback" width="620" />
-</p>
+1. **Start with a real question.** Enter a debatable topic, choose the episode length, or save interests and let Yappa suggest questions worth exploring. Episodes can begin immediately or be scheduled for later.
+2. **Research both positions separately.** Two agents use web search to build the strongest defensible cases for and against the proposition. Each side gathers claims, context, concessions, and direct source URLs.
+3. **Verify before writing.** Independent verifier agents audit the research, correct overstated claims, and reject material that cannot be supported. If either side cannot clear verification, Yappa stops instead of producing a confident but unreliable episode.
+4. **Write an actual exchange.** An editor turns only the approved claims into a conversation where Maya and Rowan challenge assumptions, answer each other directly, concede strong points, and surface the real disagreement. The transcript is reviewed and revised against factual, conversational, duration, and text-to-speech quality gates.
+5. **Create the listening experience.** Fish Audio voices the two speakers, and Yappa publishes the episode with its player, full transcript, sources, and quality score. Failed generation jobs can be retried without restarting the research from scratch.
+6. **Continue beyond the podcast.** A finished debate can become a source-linked learning article. Select any passage and ask a follow-up to receive the strongest answer from both sides, grounded in the verified transcript and source catalog.
+
+Listeners can also choose voices and save instructions about what future episodes should include or avoid. Those preferences shape coverage and tone without being treated as evidence.
+
+<!-- README-HACK:GRAPH
+type: product-flow
+brief: Show a learner entering a question and duration, two agents researching opposing positions, two independent verifiers checking claims, an editor producing and reviewing the debate, Fish Audio voicing it, and the learner receiving audio, transcript, sources, article, and two-sided follow-up answers. Make the verification gate before writing explicit.
+placement: after "What Yappa does"
+-->
 
 ## Evidence is part of the product
 
-Yappa does not ask one model to improvise both sides and call the result balanced. Research and verification are separate stages. Each side gathers its own evidence, an independent verifier checks the claims, and only approved material reaches the debate editor. The final quality gate must pass before audio synthesis begins.
+Yappa does not ask one model to improvise both sides and call the result balanced. Research, verification, transcript editing, and quality review are separate stages with structured outputs. Transcript turns retain the verified claim IDs behind their factual points, and the final episode keeps a deduplicated source list.
 
-<p align="center">
-  <img src="apps/web/public/images/features/source-tracing.png" alt="Source documents connected to a central claim for evidence tracing" width="620" />
-</p>
-
-What works today includes Google sign-in, saved interests and topic suggestions, scheduled generation, voice and content preferences, retryable jobs, public podcast pages, audio playback, full transcripts, source links, learning articles, and passage-based follow-up questions.
+The pipeline also fails visibly. If a verifier cannot approve enough source-backed claims, the transcript misses its requested length, or the final quality thresholds are not met, audio synthesis does not begin. That boundary matters for an educational product: fluent output is not treated as proof that the material is ready to teach from.
 
 ## How it is built
 
@@ -82,9 +87,3 @@ bun run check
 bun run lint
 bun run build
 ```
-
-## What's next
-
-- Publish the live demo and final hackathon video.
-- Move SQLite and generated audio to hosted persistence for a durable multi-instance deployment.
-- Add more episode-length choices after generation time and cost are measured in production.
