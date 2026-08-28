@@ -432,7 +432,8 @@ export const app = new Hono<{ Variables: AppVariables }>()
     });
   })
   .get("/generation-quota", (context) => {
-    return context.json(toGenerationQuota(context.get("user").freeGenerationsUsed));
+    const user = context.get("user");
+    return context.json(toGenerationQuota(user.freeGenerationsUsed, user.unlimitedGenerations));
   })
   .delete("/podcasts/:id", async (context) => {
     const user = context.get("user");
@@ -556,6 +557,11 @@ export const app = new Hono<{ Variables: AppVariables }>()
     };
 
     const quota = db.transaction((transaction) => {
+      if (user.unlimitedGenerations) {
+        transaction.insert(podcasts).values(podcast).run();
+        return toGenerationQuota(user.freeGenerationsUsed, true);
+      }
+
       const consumed = transaction
         .update(users)
         .set({

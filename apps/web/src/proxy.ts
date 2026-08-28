@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const publicPaths = new Set(["/", "/pricing"]);
+const publicPaths = new Set(["/", "/pricing", "/hackathon-slides.html"]);
 
 export function proxy(request: NextRequest) {
   if (publicPaths.has(request.nextUrl.pathname) || request.cookies.has("yappa_session")) {

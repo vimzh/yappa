@@ -11,6 +11,9 @@ export const users = sqliteTable("users", {
   podcastInclude: text("podcast_include"),
   podcastAvoid: text("podcast_avoid"),
   freeGenerationsUsed: integer("free_generations_used").notNull().default(0),
+  unlimitedGenerations: integer("unlimited_generations", { mode: "boolean" })
+    .notNull()
+    .default(false),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });

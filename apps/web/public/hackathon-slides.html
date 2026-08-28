@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yappa.ai — Hackathon intro</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f7f7f4;
+        --ink: #191918;
+        --muted: #74746d;
+        --line: #d8d8d1;
+        --button-hover: #ecece6;
+        --space-1: 0.5rem;
+        --space-2: 1rem;
+        --space-3: 1.5rem;
+        --space-4: 2rem;
+        --space-5: 3rem;
+        --space-6: 4rem;
+        --duration: 240ms;
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        overflow: hidden;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
+
+      button {
+        color: inherit;
+        font: inherit;
+      }
+
+      .deck-header {
+        position: fixed;
+        z-index: 10;
+        top: 0;
+        right: 0;
+        left: 0;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        min-height: 4.75rem;
+        padding: 0 var(--space-4);
+        border-bottom: 1px solid var(--line);
+        background: var(--paper);
+      }
+
+      .brand,
+      .counter,
+      .kicker,
+      .step-number,
+      .evidence-source {
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      }
+
+      .brand {
+        justify-self: start;
+        font-size: 0.82rem;
+        letter-spacing: -0.02em;
+      }
+
+      .counter {
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .controls {
+        display: flex;
+        justify-self: end;
+        gap: var(--space-1);
+      }
+
+      .arrow-button {
+        display: grid;
+        width: 2.75rem;
+        height: 2.75rem;
+        padding: 0;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 0.45rem;
+        background: transparent;
+        cursor: pointer;
+        transition:
+          background-color 140ms ease-out,
+          border-color 140ms ease-out,
+          opacity 140ms ease-out;
+      }
+
+      .arrow-button:hover:not(:disabled) {
+        border-color: var(--ink);
+        background: var(--button-hover);
+      }
+
+      .arrow-button:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 3px;
+      }
+
+      .arrow-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.28;
+      }
+
+      .arrow-button svg {
+        width: 1.1rem;
+        height: 1.1rem;
+      }
+
+      .stage {
+        position: relative;
+        min-height: 100dvh;
+      }
+
+      .slide {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        min-height: 100dvh;
+        padding: clamp(7.5rem, 15vh, 10rem) clamp(1.5rem, 5vw, 5.5rem)
+          clamp(2rem, 6vh, 4.5rem);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(0.4rem);
+        transition:
+          opacity var(--duration) ease-out,
+          transform var(--duration) var(--ease-out);
+      }
+
+      .slide.is-active {
+        z-index: 1;
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+
+      .slide-inner {
+        display: grid;
+        width: min(100%, 82rem);
+        height: 100%;
+        margin: 0 auto;
+      }
+
+      .kicker {
+        margin: 0 0 var(--space-3);
+        color: var(--muted);
+        font-size: clamp(0.72rem, 1vw, 0.88rem);
+      }
+
+      h1,
+      h2,
+      p {
+        margin-top: 0;
+      }
+
+      h1,
+      h2 {
+        text-wrap: balance;
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        font-weight: 400;
+        letter-spacing: -0.055em;
+      }
+
+      h1 {
+        max-width: 11ch;
+        margin-bottom: var(--space-4);
+        font-size: clamp(5rem, 13vw, 11rem);
+        line-height: 0.88;
+      }
+
+      h2 {
+        max-width: 14ch;
+        margin-bottom: var(--space-4);
+        font-size: clamp(3rem, 7vw, 7rem);
+        line-height: 0.94;
+      }
+
+      .lead {
+        max-width: 38rem;
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: clamp(1.2rem, 2vw, 1.75rem);
+        line-height: 1.4;
+        text-wrap: pretty;
+      }
+
+      .slide-one .slide-inner {
+        grid-template-rows: 1fr auto;
+      }
+
+      .slide-one .content {
+        align-self: center;
+      }
+
+      .perspectives {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: var(--space-3);
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .perspectives-line {
+        position: relative;
+        height: 1px;
+        background: var(--line);
+      }
+
+      .perspectives-line::after {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0.5rem;
+        height: 0.5rem;
+        border: 1px solid var(--ink);
+        border-radius: 50%;
+        background: var(--paper);
+        content: "";
+        transform: translate(-50%, -50%);
+      }
+
+      .slide-two .slide-inner,
+      .slide-three .slide-inner,
+      .slide-four .slide-inner {
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .slide-two .content,
+      .slide-three .content,
+      .slide-four .content {
+        align-self: center;
+      }
+
+      .learning-actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        margin: 0;
+        padding: 0;
+        border-top: 1px solid var(--line);
+        list-style: none;
+      }
+
+      .learning-actions li {
+        padding: var(--space-3) var(--space-3) 0 0;
+        font-size: clamp(1.05rem, 1.6vw, 1.45rem);
+      }
+
+      .learning-actions li + li {
+        padding-left: var(--space-3);
+        border-left: 1px solid var(--line);
+      }
+
+      .evidence-source {
+        display: block;
+        margin-top: var(--space-1);
+        color: var(--muted);
+        font-size: 0.68rem;
+        line-height: 1.45;
+      }
+
+      .process {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        margin: 0;
+        padding: 0;
+        border-top: 1px solid var(--line);
+        list-style: none;
+      }
+
+      .process li {
+        min-height: 7rem;
+        padding: var(--space-3) var(--space-3) 0 0;
+      }
+
+      .process li + li {
+        padding-left: var(--space-3);
+        border-left: 1px solid var(--line);
+      }
+
+      .step-number {
+        display: block;
+        margin-bottom: var(--space-2);
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .step-label {
+        max-width: 12rem;
+        font-size: clamp(1rem, 1.55vw, 1.35rem);
+        line-height: 1.25;
+      }
+
+      @media (max-width: 700px) {
+        .deck-header {
+          grid-template-columns: 1fr auto;
+          padding: 0 var(--space-2);
+        }
+
+        .counter {
+          display: none;
+        }
+
+        .slide {
+          overflow-y: auto;
+          padding-top: 6.75rem;
+        }
+
+        h1 {
+          font-size: clamp(4rem, 21vw, 7rem);
+        }
+
+        h2 {
+          font-size: clamp(2.75rem, 13vw, 4.5rem);
+        }
+
+        .perspectives {
+          grid-template-columns: 1fr;
+          gap: var(--space-2);
+        }
+
+        .perspectives span:last-child {
+          text-align: right;
+        }
+
+        .learning-actions,
+        .process {
+          grid-template-columns: 1fr;
+        }
+
+        .learning-actions li,
+        .process li {
+          min-height: auto;
+          padding: var(--space-2) 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .learning-actions li + li,
+        .process li + li {
+          padding-left: 0;
+          border-left: 0;
+        }
+
+        .step-number {
+          display: inline;
+          margin-right: var(--space-2);
+        }
+
+        .step-label {
+          display: inline;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .slide,
+        .arrow-button {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="deck-header">
+      <span class="brand">Yappa.ai</span>
+      <span class="counter" id="slide-counter" aria-live="polite">01 / 04</span>
+      <nav class="controls" aria-label="Slide navigation">
+        <button class="arrow-button" id="previous-slide" type="button" aria-label="Previous slide">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button class="arrow-button" id="next-slide" type="button" aria-label="Next slide">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+      </nav>
+    </header>
+
+    <main class="stage">
+      <section class="slide slide-one is-active" data-slide="0" aria-labelledby="slide-one-title">
+        <div class="slide-inner">
+          <div class="content">
+            <p class="kicker">An educational audio tool</p>
+            <h1 id="slide-one-title">Yappa.ai</h1>
+            <p class="lead">Turn any question into a researched, two-sided debate podcast.</p>
+          </div>
+          <div class="perspectives" aria-label="Two perspectives meet in one debate">
+            <span>Evidence for</span>
+            <span class="perspectives-line" aria-hidden="true"></span>
+            <span>Evidence against</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide slide-two" data-slide="1" aria-labelledby="slide-two-title" aria-hidden="true">
+        <div class="slide-inner">
+          <p class="kicker">Why debate</p>
+          <div class="content">
+            <h2 id="slide-two-title">An idea gets clearer when it has to survive both sides.</h2>
+            <p class="lead">
+              Structured debate turns learning from passive reception into active judgment.
+            </p>
+          </div>
+          <ul class="learning-actions" aria-label="Learning benefits of debate">
+            <li>Compare evidence</li>
+            <li>Challenge assumptions</li>
+            <li>
+              Build your own view
+              <span class="evidence-source">Writing, argumentation, and subject-learning studies summarized on Yappa.ai</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="slide slide-three" data-slide="2" aria-labelledby="slide-three-title" aria-hidden="true">
+        <div class="slide-inner">
+          <p class="kicker">Your learning, your judgment</p>
+          <div class="content">
+            <h2 id="slide-three-title">You decide.</h2>
+            <p class="lead">Yappa brings the question, the evidence, and both perspectives. You keep the final word.</p>
+          </div>
+          <div class="perspectives" aria-label="Two researched perspectives lead to your own view">
+            <span>Two researched perspectives</span>
+            <span class="perspectives-line" aria-hidden="true"></span>
+            <span>Your view</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide slide-four" data-slide="3" aria-labelledby="slide-four-title" aria-hidden="true">
+        <div class="slide-inner">
+          <p class="kicker">How it works</p>
+          <div class="content">
+            <h2 id="slide-four-title">From question to podcast.</h2>
+            <p class="lead">Four steps turn curiosity into a researched debate you can hear anywhere.</p>
+          </div>
+          <ol class="process" aria-label="How Yappa works">
+            <li>
+              <span class="step-number">01</span>
+              <span class="step-label">Choose a question</span>
+            </li>
+            <li>
+              <span class="step-number">02</span>
+              <span class="step-label">Both sides research</span>
+            </li>
+            <li>
+              <span class="step-number">03</span>
+              <span class="step-label">Claims are verified</span>
+            </li>
+            <li>
+              <span class="step-number">04</span>
+              <span class="step-label">Listen and decide</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const slides = [...document.querySelectorAll("[data-slide]")];
+      const previousButton = document.querySelector("#previous-slide");
+      const nextButton = document.querySelector("#next-slide");
+      const counter = document.querySelector("#slide-counter");
+      const hashIndex = Number.parseInt(window.location.hash.slice(1), 10) - 1;
+      let currentSlide = Number.isInteger(hashIndex) && hashIndex >= 0 && hashIndex < slides.length
+        ? hashIndex
+        : 0;
+
+      function showSlide(index) {
+        currentSlide = Math.max(0, Math.min(index, slides.length - 1));
+
+        slides.forEach((slide, slideIndex) => {
+          const isActive = slideIndex === currentSlide;
+          slide.classList.toggle("is-active", isActive);
+          slide.setAttribute("aria-hidden", String(!isActive));
+        });
+
+        previousButton.disabled = currentSlide === 0;
+        nextButton.disabled = currentSlide === slides.length - 1;
+        counter.textContent = `${String(currentSlide + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
+        window.history.replaceState(null, "", `#${currentSlide + 1}`);
+      }
+
+      previousButton.addEventListener("click", () => showSlide(currentSlide - 1));
+      nextButton.addEventListener("click", () => showSlide(currentSlide + 1));
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowLeft") showSlide(currentSlide - 1);
+        if (event.key === "ArrowRight") showSlide(currentSlide + 1);
+      });
+
+      showSlide(currentSlide);
+    </script>
+  </body>
+</html>

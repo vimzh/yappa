@@ -69,9 +69,10 @@ type Podcast = {
 };
 
 type GenerationQuota = {
-  limit: number;
+  unlimited: boolean;
+  limit: number | null;
   used: number;
-  remaining: number;
+  remaining: number | null;
   allowedDurations: number[];
 };
 
@@ -694,7 +695,9 @@ export function PodcastWorkspace() {
       <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
         <p className="text-sm text-muted-foreground" id="generation-quota-summary" role="status">
           {quota
-            ? quota.remaining === 0
+            ? quota.unlimited
+              ? "Unlimited generations"
+              : quota.remaining === 0
               ? "All 3 free generations used"
               : `${quota.remaining} of ${quota.limit} free generations left`
             : quotaError
