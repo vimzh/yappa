@@ -10,4 +10,4 @@ export function proxy(request: NextRequest) {
   return NextResponse.redirect(new URL("/?auth=required", request.url));
 }
 
-export const config = { matcher: ["/((?!_next|favicon.ico|icon.svg|demos|images).*)"] };
+export const config = { matcher: ["/((?!api|_next|favicon.ico|icon.svg|demos|images).*)"] };
